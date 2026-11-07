@@ -1,0 +1,7 @@
+version=1
+title=28 Bases Later
+description=Claim and manage multiple safehouses simultaneously in Project Zomboid Build 42.
+description=Includes management UI (F7), custom base renaming, selectable respawns, and base releasing.
+description=Full dedicated server multiplayer support.
+tags=Build 42;Multiplayer;Framework
+visibility=public
