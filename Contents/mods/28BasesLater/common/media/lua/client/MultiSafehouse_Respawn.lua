@@ -5,32 +5,34 @@
 -- Requests safehouse respawn coordinates from the server and performs the teleport.
 
 local function onCreatePlayer(playerNum, player)
-    local p = type(playerNum) == "number" and getSpecificPlayer(playerNum) or player
-
-    -- Guard: Existing survivors reconnecting to the server already have survived > 0 hours.
-    -- We exit immediately so their in-game location is never modified.
-    if p and p.getHoursSurvived and p:getHoursSurvived() > 0 then
-        return
-    end
-
-    -- Wait ~2 seconds (120 ticks) for the initial world chunks to stream in
     local ticksWaited = 0
 
-    local function waitThenRequest()
+    local function onPlayerInitTick()
         ticksWaited = ticksWaited + 1
 
+        local pObj = type(playerNum) == "number" and getSpecificPlayer(playerNum) or player
+
+        -- 1. DATA HYDRATION: Request base names for ALL players (reconnecting or brand new)
+        -- We wait 30 ticks (~0.5 sec) to give the network connection time to settle.
+        if ticksWaited == 30 then
+            if pObj then
+                sendClientCommand(pObj, "MultiSafehouse", "requestData", { reason = "connect" })
+            end
+        end
+
+        -- 2. RESPAWN TELEPORT: Only for fresh characters who just died and respawned
+        -- We wait 120 ticks (~2 sec) so the map chunks have time to load around them.
         if ticksWaited >= 120 then
-            local pObj = getSpecificPlayer(playerNum)
             if pObj and pObj.getHoursSurvived and pObj:getHoursSurvived() <= 0.01 then
-                sendClientCommand(pObj, "MultiSafehouse", "checkRespawn", {})
-                sendClientCommand(pObj, "MultiSafehouse", "requestData", {})
+                sendClientCommand(pObj, "MultiSafehouse", "checkRespawn", { reason = "newCharacter" })
             end
 
-            Events.OnTick.Remove(waitThenRequest)
+            -- Remove our timer once all checks are done
+            Events.OnTick.Remove(onPlayerInitTick)
         end
     end
 
-    Events.OnTick.Add(waitThenRequest)
+    Events.OnTick.Add(onPlayerInitTick)
 end
 
 Events.OnCreatePlayer.Add(onCreatePlayer)

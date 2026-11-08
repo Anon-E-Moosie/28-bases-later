@@ -19,4 +19,7 @@ MultiSafehouse.maxDimension = 120
 -- Structure: MultiSafehouse.playerData[username] = { {x, y, w, h, name, isRespawn}, ... }
 MultiSafehouse.playerData = MultiSafehouse.playerData or {}
 
+-- Tracks whether authoritative safehouse data has been received from the server.
+MultiSafehouse.isHydrated = false
+
 print("[28 Bases Later] Core loaded (v" .. MultiSafehouse.version .. ")")

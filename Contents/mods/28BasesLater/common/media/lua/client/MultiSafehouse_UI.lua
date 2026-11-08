@@ -152,26 +152,18 @@ function MultiSafehouseWindow:refreshList()
     local username = player:getUsername()
     local safehouses = MultiSafehouse.playerData[username] or {}
 
-    -- Fallback to vanilla SafeHouse list if player data has not arrived yet
-    if #safehouses == 0 and SafeHouse and SafeHouse.getSafehouseList then
-        local vanillaList = SafeHouse.getSafehouseList()
-        for i = 0, vanillaList:size() - 1 do
-            local sh = vanillaList:get(i)
-            if sh and sh:getOwner() == username then
-                table.insert(safehouses, {
-                    x = sh:getX(), y = sh:getY(),
-                    w = sh:getW(), h = sh:getH(),
-                    name = "Base #" .. (#safehouses + 1),
-                    isRespawn = (#safehouses == 0)
-                })
-            end
-        end
-        MultiSafehouse.playerData[username] = safehouses
+    -- 1. If the server has not sent our data yet, show a status message
+    -- instead of inventing fake names and poisoning local memory.
+    if not MultiSafehouse.isHydrated then
+        self.baseList:addItem("Fetching bases from server...", nil)
+        return
     end
 
+    -- 2. If the server confirmed we own 0 safehouses
     if #safehouses == 0 then
         self.baseList:addItem("No bases claimed yet. Right-click inside a building!", nil)
     else
+        -- 3. Render each genuine base with its real custom name
         for i, base in ipairs(safehouses) do
             local label = base.name
             if base.isRespawn then
@@ -191,7 +183,7 @@ end
 function MultiSafehouseWindow:onRefresh()
     local player = getPlayer()
     if player then
-        sendClientCommand(player, "MultiSafehouse", "requestData", {})
+        sendClientCommand(player, "MultiSafehouse", "requestData", { reason = "manualRefresh" })
     end
 end
 
@@ -328,7 +320,7 @@ function MultiSafehouse.toggleUI()
 
     local player = getPlayer()
     if player then
-        sendClientCommand(player, "MultiSafehouse", "requestData", {})
+        sendClientCommand(player, "MultiSafehouse", "requestData", { reason = "uiToggle" })
     end
 end
 
@@ -340,6 +332,7 @@ local function onServerCommand(module, command, args)
         local player = getPlayer()
         if player then
             MultiSafehouse.playerData[player:getUsername()] = args.safehouses
+            MultiSafehouse.isHydrated = true
         end
 
         if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
