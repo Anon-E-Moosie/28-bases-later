@@ -160,7 +160,13 @@ local function onServerCommand(module, command, args)
         if SafeHouse and args.x and args.y and args.w and args.h then
             local fn = SafeHouse.addSafeHouse or SafeHouse.addSafehouse
             if fn then
-                pcall(function() return fn(args.x, args.y, args.w, args.h, args.owner) end)
+                pcall(function()
+                    local sh = fn(args.x, args.y, args.w, args.h, args.owner)
+                    if sh and args.name then
+                        sh:setTitle(args.name)
+                    end
+                    return sh
+                end)
             end
         end
 

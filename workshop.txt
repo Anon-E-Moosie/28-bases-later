@@ -30,7 +30,7 @@ Why settle for one safehouse when Knox County is full of empty houses?
 [h2]Planned Features[/h2]
 
 [list]
-[*] [b]Basic Loot Tracking:[/b] Easily track what loot you already have stored at certain bases while exploring Knox Country.
+[*] [b]Basic Loot Tracking:[/b] Easily track what loot you already have stored at certain bases while exploring Knox County.
 [*] [b]"See on Map" Button:[/b] A button in the 28BL menu that opens your map and centers it directly on the selected base.
 [*] [b]Custom Keybind:[/b] Option to change the menu keybind in settings if you don't want to use F7.
 [*] [b]Sharing & Co-ownership:[/b] Better sharing options for friends and faction members.
@@ -44,7 +44,7 @@ Why settle for one safehouse when Knox County is full of empty houses?
 [*] Project Zomboid [b]Build 42[/b]
 [*] Multiplayer (Dedicated Server & Co-Op)
 [*] Safe to add to existing saves
-[*] Haven't properly tested with mods such as Better Safehouses yet, may cause conflicts
+[*] Should be compatable with any mods using the safehouse events, such as Better Safehouses, but further testing is required
 [/list]
 
 [hr][/hr]
@@ -70,9 +70,15 @@ That is not to say this mod does not have other bugs, I intend to openly support
 [hr][/hr]
 [h2]Changelog[/h2]
 
-[b]v1.0.1[/b]
+[b]v1.0.2[/b]
 [list]
-[*] Fixed issue with bases losing their saved names on server rejoin
+[*] Saved base names now load automatically when joining a server and will no longer revert on rejoin
+[*] Linked name and respawn changes across all menus, this should improve compatability with other mods using the safehouse events such as Better Safehouse
+[*] Updated how the mod registers building locations, this should stop duplicate claims and phantom safehouse entries by claiming and unclaiming
+[*] Added a "Max Bases Per Player" setting to Sandbox Options and the Mod Menu (set to 0 for unlimited), this lets admins easily set safehouse limits
+[*] Added a "Max Building Dimension" setting to Sandbox Options (default 120, range 10–300); admins can use this to prevent players from claiming massive structures like malls
+[*] Cleaned up menu text and added hover tips
+
 [/list]
 
 Workshop ID: 3835106467

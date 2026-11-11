@@ -141,6 +141,19 @@ function MultiSafehouseWindow:drawBaseItem(y, item, alt)
     return y + item.height
 end
 
+-- Helper to safely locate a native safehouse by coordinates in client memory
+local function findClientSafehouse(x, y)
+    if not SafeHouse or not SafeHouse.getSafehouseList then return nil end
+    local list = SafeHouse.getSafehouseList()
+    for i = 0, list:size() - 1 do
+        local sh = list:get(i)
+        if sh and sh:getX() == x and sh:getY() == y then
+            return sh
+        end
+    end
+    return nil
+end
+
 -- Rebuilds list items from cached data, preserving selected row
 function MultiSafehouseWindow:refreshList()
     local prevSelected = self.baseList.selected or 1
@@ -165,7 +178,21 @@ function MultiSafehouseWindow:refreshList()
     else
         -- 3. Render each genuine base with its real custom name
         for i, base in ipairs(safehouses) do
-            local label = base.name
+            -- Live cross-reference against client's native SafeHouse cache
+            local sh = findClientSafehouse(base.x, base.y)
+            if sh then
+                if sh.getTitle then
+                    local nativeTitle = sh:getTitle()
+                    if nativeTitle and nativeTitle ~= "" then
+                        base.name = nativeTitle
+                    end
+                end
+                if sh.isRespawnInSafehouse then
+                    base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
+                end
+            end
+
+            local label = base.name or ("Base #" .. i)
             if base.isRespawn then
                 label = label .. "   [RESPAWN]"
             end
@@ -219,8 +246,12 @@ function MultiSafehouseWindow:onRenameConfirm(button)
         if newName and newName ~= "" then
             local player = getPlayer()
             if player then
+                local selectedItem = self.baseList.items[self.renameIndex]
+                local baseObj = selectedItem and selectedItem.item or nil
                 sendClientCommand(player, "MultiSafehouse", "renameBase", {
                     index = self.renameIndex,
+                    x = baseObj and baseObj.x or nil,
+                    y = baseObj and baseObj.y or nil,
                     newName = newName
                 })
             end
@@ -276,11 +307,24 @@ function MultiSafehouseWindow:onSetRespawn()
     local selectedItem = self.baseList.items[selectedIndex]
     if not selectedItem or not selectedItem.item then return end
 
+    local baseObj = selectedItem.item
     local player = getPlayer()
     if player then
         sendClientCommand(player, "MultiSafehouse", "setRespawn", {
-            index = selectedIndex
+            index = selectedIndex,
+            x = baseObj.x,
+            y = baseObj.y
         })
+
+        -- Native engine network sync so vanilla safehouse checkboxes update instantly
+        if sendSafehouseChangeRespawn and baseObj.x and baseObj.y then
+            local sh = findClientSafehouse(baseObj.x, baseObj.y)
+            if sh then
+                pcall(function()
+                    sendSafehouseChangeRespawn(sh, player:getUsername(), true)
+                end)
+            end
+        end
     end
 end
 
@@ -338,7 +382,76 @@ local function onServerCommand(module, command, args)
         if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
             MultiSafehouse.uiWindow:refreshList()
         end
+    elseif command == "syncAdminConfig" and args.maxBases ~= nil then
+        MultiSafehouse.serverMaxBases = tonumber(args.maxBases)
     end
+end
+
+-- Listens to native engine event when any safehouse is claimed, released, or renamed
+local function onSafehousesChanged()
+    local player = getPlayer()
+    if not player then return end
+    local username = player:getUsername()
+
+    -- 1. Reconcile local client cache against authoritative engine safehouses
+    if MultiSafehouse.playerData[username] and SafeHouse and SafeHouse.getSafehouseList then
+        local list = SafeHouse.getSafehouseList()
+        local activeCoords = {}
+        for i = 0, list:size() - 1 do
+            local sh = list:get(i)
+            if sh and sh:getOwner() == username then
+                activeCoords[sh:getX() .. "," .. sh:getY()] = sh
+            end
+        end
+
+        local updated = {}
+        for _, base in ipairs(MultiSafehouse.playerData[username]) do
+            local key = base.x .. "," .. base.y
+            local sh = activeCoords[key]
+            if sh then
+                local nativeTitle = sh:getTitle()
+                if nativeTitle and nativeTitle ~= "" then
+                    base.name = nativeTitle
+                end
+                if sh.isRespawnInSafehouse then
+                    base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
+                end
+                table.insert(updated, base)
+                activeCoords[key] = nil
+            end
+        end
+
+        -- Add any safehouses claimed outside 28BL (e.g. via vanilla or Better Safehouse)
+        for key, sh in pairs(activeCoords) do
+            local baseName = sh:getTitle()
+            if not baseName or baseName == "" then
+                baseName = "Base #" .. (#updated + 1)
+            end
+            local isResp = false
+            if sh.isRespawnInSafehouse then
+                isResp = (sh:isRespawnInSafehouse(username) == true)
+            end
+            table.insert(updated, {
+                x = sh:getX(),
+                y = sh:getY(),
+                w = sh:getW(),
+                h = sh:getH(),
+                name = baseName,
+                isRespawn = isResp
+            })
+        end
+
+        MultiSafehouse.playerData[username] = updated
+    end
+
+    -- 2. Immediately update the 28BL list if currently open
+    if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
+        MultiSafehouse.uiWindow:refreshList()
+    end
+end
+
+if Events and Events.OnSafehousesChanged then
+    Events.OnSafehousesChanged.Add(onSafehousesChanged)
 end
 
 Events.OnServerCommand.Add(onServerCommand)

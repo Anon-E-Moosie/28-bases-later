@@ -8,6 +8,134 @@ local function getModData()
     return ModData.getOrCreate("28BasesLater")
 end
 
+local function isPlayerAdmin(player)
+    if not player then return false end
+    if player.getAccessLevel then
+        local access = player:getAccessLevel()
+        if access and access ~= "" and access ~= "none" then
+            return true
+        end
+    end
+    if player.isAdmin and player:isAdmin() then
+        return true
+    end
+    if not isClient() and not isServer() then
+        return true
+    end
+    return false
+end
+
+local function onInitGlobalModData(isNewGame)
+    ModData.getOrCreate("28BasesLater")
+    local config = ModData.getOrCreate("28BasesLater_Config")
+    if config.maxBasesPerPlayer ~= nil then
+        MultiSafehouse.serverMaxBases = config.maxBasesPerPlayer
+    end
+end
+Events.OnInitGlobalModData.Add(onInitGlobalModData)
+
+-- Finds the native Java SafeHouse object at given coordinates
+local function findNativeSafehouse(x, y)
+    if not SafeHouse or not SafeHouse.getSafehouseList then return nil end
+    local list = SafeHouse.getSafehouseList()
+    for i = 0, list:size() - 1 do
+        local sh = list:get(i)
+        if sh and sh:getX() == x and sh:getY() == y then
+            return sh
+        end
+    end
+    return nil
+end
+
+-- Reconciles 28BL stored bases against the authoritative in-game SafeHouse list.
+-- Removes phantom/released bases, syncs native titles, and guarantees no duplicates.
+local function reconcilePlayerSafehouses(username)
+    local data = getModData()
+    data[username] = data[username] or {}
+    local stored = data[username]
+
+    if not SafeHouse or not SafeHouse.getSafehouseList then
+        return stored
+    end
+
+    local list = SafeHouse.getSafehouseList()
+    local realMap = {}
+    for i = 0, list:size() - 1 do
+        local sh = list:get(i)
+        if sh and sh:getOwner() == username then
+            local key = sh:getX() .. "," .. sh:getY()
+            realMap[key] = sh
+        end
+    end
+
+    local reconciled = {}
+    local hadRespawn = false
+
+    -- 1. Keep only bases that genuinely still exist in the world
+    for _, base in ipairs(stored) do
+        local key = base.x .. "," .. base.y
+        local sh = realMap[key]
+        if sh then
+            local nativeTitle = sh:getTitle()
+            if nativeTitle and nativeTitle ~= "" then
+                base.name = nativeTitle
+            end
+            base.w = sh:getW()
+            base.h = sh:getH()
+            if sh.isRespawnInSafehouse then
+                base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
+            end
+            if base.isRespawn then
+                hadRespawn = true
+            end
+            table.insert(reconciled, base)
+            realMap[key] = nil
+        end
+    end
+
+    -- 2. Add any bases claimed outside 28BL (e.g. via vanilla menu)
+    for key, sh in pairs(realMap) do
+        local baseName = sh:getTitle()
+        if not baseName or baseName == "" then
+            baseName = "Base #" .. (#reconciled + 1)
+            sh:setTitle(baseName)
+            if sh.syncSafehouse then sh:syncSafehouse() end
+        end
+        local isResp = false
+        if sh.isRespawnInSafehouse then
+            isResp = (sh:isRespawnInSafehouse(username) == true)
+        end
+        if not hadRespawn and #reconciled == 0 then
+            isResp = true
+            if sh.setRespawnInSafehouse then
+                pcall(function() sh:setRespawnInSafehouse(true, username) end)
+            end
+        end
+        if isResp then hadRespawn = true end
+
+        table.insert(reconciled, {
+            x = sh:getX(),
+            y = sh:getY(),
+            w = sh:getW(),
+            h = sh:getH(),
+            name = baseName,
+            isRespawn = isResp
+        })
+    end
+
+    -- 3. Ensure player has a designated respawn if they own bases
+    if #reconciled > 0 and not hadRespawn then
+        reconciled[1].isRespawn = true
+        local firstSh = findNativeSafehouse(reconciled[1].x, reconciled[1].y)
+        if firstSh and firstSh.setRespawnInSafehouse then
+            pcall(function() firstSh:setRespawnInSafehouse(true, username) end)
+        end
+    end
+
+    data[username] = reconciled
+    return reconciled
+end
+
 -- Checks if two 2D rectangles overlap.
 -- Used to prevent duplicate claims and colliding safehouses.
 local function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2)
@@ -83,12 +211,12 @@ end
 -- MAIN COMMAND ROUTER
 -- -----------------------------------------------
 local function onClientCommand(module, command, player, args)
-    if module ~= "MultiSafehouse" or not player or not args then return end
+    if module ~= "MultiSafehouse" or not player then return end
+    args = args or {}
 
     local username = player:getUsername()
+    local playerSafehouses = reconcilePlayerSafehouses(username)
     local data = getModData()
-    data[username] = data[username] or {}
-    local playerSafehouses = data[username]
 
     -- -------------------------------------------
     -- COMMAND: "claimBase"
@@ -100,7 +228,7 @@ local function onClientCommand(module, command, player, args)
         local h = math.floor(tonumber(args.h) or 0)
 
         -- SECURITY 1: Validate positive dimensions within allowable limits
-        local maxDim = MultiSafehouse.maxDimension or 120
+        local maxDim = MultiSafehouse.getMaxDimension()
         if w <= 0 or h <= 0 or w > maxDim or h > maxDim then
             print("[28 Bases Later] Security: Invalid dimensions requested by " .. username)
             return
@@ -115,9 +243,9 @@ local function onClientCommand(module, command, player, args)
             return
         end
 
-        -- SECURITY 3: Enforce maximum bases per player
-        local maxBases = MultiSafehouse.maxBasesPerPlayer or 28
-        if #playerSafehouses >= maxBases then
+        -- SECURITY 3: Enforce maximum bases per player (0 = unlimited)
+        local maxBases = MultiSafehouse.getMaxBasesPerPlayer()
+        if maxBases > 0 and #playerSafehouses >= maxBases then
             player:Say("Max safehouse limit reached (" .. maxBases .. ")!")
             return
         end
@@ -145,14 +273,40 @@ local function onClientCommand(module, command, player, args)
 
         local baseCount = #playerSafehouses + 1
         local baseName = "Base #" .. baseCount
-        table.insert(playerSafehouses, {
-            x = x,
-            y = y,
-            w = w,
-            h = h,
-            name = baseName,
-            isRespawn = (baseCount == 1) -- First claimed base defaults to respawn
-        })
+
+        -- Set the native title on the newly created safehouse
+        local sh = (type(result) == "userdata" and result) or findNativeSafehouse(x, y)
+        if sh then
+            if sh.setTitle then sh:setTitle(baseName) end
+            if sh.syncSafehouse then sh:syncSafehouse() end
+        end
+
+        -- Deduplicate: check if this (x, y) already exists
+        local alreadyExists = false
+        for _, existing in ipairs(playerSafehouses) do
+            if existing.x == x and existing.y == y then
+                alreadyExists = true
+                existing.w = w
+                existing.h = h
+                existing.name = baseName
+                break
+            end
+        end
+
+        if not alreadyExists then
+            local isResp = (baseCount == 1)
+            table.insert(playerSafehouses, {
+                x = x,
+                y = y,
+                w = w,
+                h = h,
+                name = baseName,
+                isRespawn = isResp
+            })
+            if isResp and sh and sh.setRespawnInSafehouse then
+                pcall(function() sh:setRespawnInSafehouse(true, username) end)
+            end
+        end
 
         data[username] = playerSafehouses
 
@@ -219,7 +373,18 @@ local function onClientCommand(module, command, player, args)
         if index < 1 or index > #playerSafehouses then return end
 
         local cleanName = sanitizeName(args.newName, "Base #" .. index)
-        playerSafehouses[index].name = cleanName
+        local base = playerSafehouses[index]
+
+        -- Update native engine safehouse so Vanilla and Better Safehouse see the new title
+        local sh = findNativeSafehouse(base.x, base.y)
+        if sh then
+            sh:setTitle(cleanName)
+            if sh.syncSafehouse then
+                sh:syncSafehouse()
+            end
+        end
+
+        base.name = cleanName
         data[username] = playerSafehouses
 
         sendServerCommand(player, "MultiSafehouse", "syncData", {
@@ -234,7 +399,15 @@ local function onClientCommand(module, command, player, args)
         if index < 1 or index > #playerSafehouses then return end
 
         for i, base in ipairs(playerSafehouses) do
-            base.isRespawn = (i == index)
+            local isTarget = (i == index)
+            base.isRespawn = isTarget
+            local sh = findNativeSafehouse(base.x, base.y)
+            if sh and sh.setRespawnInSafehouse then
+                pcall(function()
+                    sh:setRespawnInSafehouse(isTarget, username)
+                    if sh.syncSafehouse then sh:syncSafehouse() end
+                end)
+            end
         end
 
         data[username] = playerSafehouses
@@ -266,9 +439,42 @@ local function onClientCommand(module, command, player, args)
     -- COMMAND: "requestData"
     -- -------------------------------------------
     elseif command == "requestData" then
+        playerSafehouses = reconcilePlayerSafehouses(username)
         sendServerCommand(player, "MultiSafehouse", "syncData", {
             safehouses = playerSafehouses
         })
+
+    -- -------------------------------------------
+    -- COMMAND: "setAdminConfig"
+    -- -------------------------------------------
+    elseif command == "setAdminConfig" then
+        if not isPlayerAdmin(player) then
+            print("[28 Bases Later] Security: Non-admin " .. username .. " attempted to modify server config.")
+            return
+        end
+
+        local requestedCap = tonumber(args.maxBases)
+        if requestedCap ~= nil then
+            local sanitizedCap = math.max(0, math.min(100, math.floor(requestedCap)))
+            MultiSafehouse.serverMaxBases = sanitizedCap
+
+            local configData = ModData.getOrCreate("28BasesLater_Config")
+            configData.maxBasesPerPlayer = sanitizedCap
+
+            local players = getOnlinePlayers and getOnlinePlayers() or nil
+            if players then
+                for i = 0, players:size() - 1 do
+                    local p = players:get(i)
+                    if p then
+                        sendServerCommand(p, "MultiSafehouse", "syncAdminConfig", {
+                            maxBases = sanitizedCap
+                        })
+                    end
+                end
+            end
+
+            print("[28 Bases Later] Admin " .. username .. " updated max safehouses to: " .. sanitizedCap)
+        end
     end
 end
 

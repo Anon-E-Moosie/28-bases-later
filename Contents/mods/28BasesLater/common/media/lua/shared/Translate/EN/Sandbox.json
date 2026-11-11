@@ -1,0 +1,7 @@
+{
+    "Sandbox_MultiSafehouse": "28 Bases Later",
+    "Sandbox_MultiSafehouse_MaxBasesPerPlayer": "Max Bases Per Player",
+    "Sandbox_MultiSafehouse_MaxBasesPerPlayer_tooltip": "Maximum number of safehouses a single player may own simultaneously (0-100). Enter 0 for unlimited. Default is 28.",
+    "Sandbox_MultiSafehouse_MaxDimension": "Max Building Dimension",
+    "Sandbox_MultiSafehouse_MaxDimension_tooltip": "Maximum building width or length (in tiles) that can be claimed as a safehouse. Default is 120."
+}

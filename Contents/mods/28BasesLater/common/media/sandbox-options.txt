@@ -1,0 +1,21 @@
+VERSION = 1,
+
+option MultiSafehouse.MaxBasesPerPlayer
+{
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 28,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_MaxBasesPerPlayer,
+}
+
+option MultiSafehouse.MaxDimension
+{
+    type = integer,
+    min = 10,
+    max = 300,
+    default = 120,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_MaxDimension,
+}
