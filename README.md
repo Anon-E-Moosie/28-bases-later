@@ -66,6 +66,14 @@ That is not to say this mod does not have other bugs, I intend to openly support
 
 ## Changelog
 
+**V1.0.2**
+ - Saved base names now load automatically when joining a server and will no longer revert on rejoin
+ - Linked name and respawn changes across all menus, this should improve compatability with other mods using the safehouse events such as Better Safehouse
+ - Updated how the mod registers building locations, this should stop duplicate claims and phantom safehouse entries by claiming and unclaiming
+ - Added a "Max Bases Per Player" setting to Sandbox Options and the Mod Menu (set to 0 for unlimited), this lets admins easily set safehouse limits
+ - Added a "Max Building Dimension" setting to Sandbox Options (default 120, range 10–300); admins can use this to prevent players from claiming massive structures like malls
+ - Cleaned up menu text and added hover tips
+
 **V1.0.1**
  - Fixed issue with bases losing their saved names on server rejoin
 
