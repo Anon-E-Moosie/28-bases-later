@@ -195,12 +195,58 @@ function MultiSafehousePlayerPicker:onInvite()
 
     if targetUsername and self.targetBase then
         local me = getPlayer()
+        local myUsername = me and me:getUsername() or ""
+        local bx = self.targetBase.x
+        local by = self.targetBase.y
+
+        -- 1. Native Build 42 safehouse invite
+        local sh = MultiSafehouse.findClientSafehouse and MultiSafehouse.findClientSafehouse(bx, by)
+        if sh and sendSafehouseInvite then
+            pcall(function()
+                sendSafehouseInvite(sh, myUsername, targetUsername)
+            end)
+        end
+
+        -- 2. Mod server command
         if me then
             sendClientCommand(me, "MultiSafehouse", "inviteMember", {
-                x = self.targetBase.x,
-                y = self.targetBase.y,
+                x = bx,
+                y = by,
                 targetUsername = targetUsername
             })
+        end
+
+        -- 3. Optimistic UI update: add member to targetBase.members & playerData
+        self.targetBase.members = self.targetBase.members or {}
+        local alreadyIn = false
+        for _, m in ipairs(self.targetBase.members) do
+            if m == targetUsername then
+                alreadyIn = true
+                break
+            end
+        end
+        if not alreadyIn then
+            table.insert(self.targetBase.members, targetUsername)
+        end
+
+        if myUsername ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[myUsername] then
+            for _, b in ipairs(MultiSafehouse.playerData[myUsername]) do
+                if b.x == bx and b.y == by then
+                    b.members = b.members or {}
+                    local found = false
+                    for _, m in ipairs(b.members) do
+                        if m == targetUsername then found = true; break end
+                    end
+                    if not found then
+                        table.insert(b.members, targetUsername)
+                    end
+                    break
+                end
+            end
+        end
+
+        if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
+            MultiSafehouse.uiWindow:onBaseSelected()
         end
     end
 

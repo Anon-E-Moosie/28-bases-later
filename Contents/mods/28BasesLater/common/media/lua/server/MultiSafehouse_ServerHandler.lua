@@ -174,7 +174,7 @@ local function reconcilePlayerSafehouses(username)
             base.h = sh:getH()
             base.owner = username
             base.isOwner = true
-            if sh.isRespawnInSafehouse then
+            if base.isRespawn == nil and sh.isRespawnInSafehouse then
                 base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
             end
             if base.isRespawn then
@@ -219,8 +219,15 @@ local function reconcilePlayerSafehouses(username)
         })
     end
 
-    -- 3. Ensure player has a designated respawn if they own bases
-    if #reconciledOwned > 0 and not hadRespawn then
+    -- 3. Only auto-assign default respawn if this player has never had any respawn initialized
+    local hadExplicitPreference = false
+    for _, b in ipairs(stored) do
+        if b.isRespawn ~= nil then
+            hadExplicitPreference = true
+            break
+        end
+    end
+    if not hadExplicitPreference and #reconciledOwned > 0 and not hadRespawn then
         reconciledOwned[1].isRespawn = true
         local firstSh = findNativeSafehouse(reconciledOwned[1].x, reconciledOwned[1].y)
         if firstSh and firstSh.setRespawnInSafehouse then
@@ -659,15 +666,34 @@ local function onClientCommand(module, command, player, args)
 
         if not targetBase then return end
 
+        local newRespawn = true
+        if args.isRespawn ~= nil then
+            newRespawn = (args.isRespawn == true)
+        else
+            newRespawn = not (targetBase.isRespawn == true)
+        end
+
         for _, base in ipairs(playerSafehouses) do
             local isTarget = (base.x == targetBase.x and base.y == targetBase.y)
-            base.isRespawn = isTarget
+            local state = isTarget and newRespawn or false
+            base.isRespawn = state
             local sh = findNativeSafehouse(base.x, base.y)
             if sh and sh.setRespawnInSafehouse then
                 pcall(function()
-                    sh:setRespawnInSafehouse(isTarget, username)
+                    sh:setRespawnInSafehouse(state, username)
                     if sh.syncSafehouse then sh:syncSafehouse() end
                 end)
+            end
+        end
+
+        -- Persist directly in data[username] for owned bases
+        if data[username] then
+            for _, b in ipairs(data[username]) do
+                if b.x == targetBase.x and b.y == targetBase.y then
+                    b.isRespawn = newRespawn
+                elseif newRespawn then
+                    b.isRespawn = false
+                end
             end
         end
 

@@ -289,9 +289,11 @@ function MultiSafehouseWindow:onResize()
     end
 
     -- 4. Position bottom row global buttons
+    local respawnBtnW = btnW + 25
     if self.respawnBtn then
         self.respawnBtn:setX(pad)
         self.respawnBtn:setY(bottomRowY)
+        self.respawnBtn:setWidth(respawnBtnW)
     end
     if self.renameBtn then
         self.renameBtn:setX(self.respawnBtn:getRight() + 8)
@@ -387,6 +389,8 @@ local function findClientSafehouse(x, y)
     end
     return nil
 end
+MultiSafehouse = MultiSafehouse or {}
+MultiSafehouse.findClientSafehouse = findClientSafehouse
 
 local function extractSafehouseMembersClient(sh, ownerUsername)
     local members = {}
@@ -436,7 +440,7 @@ function MultiSafehouseWindow:refreshList()
                         base.name = nativeTitle
                     end
                 end
-                if sh.isRespawnInSafehouse then
+                if base.isRespawn == nil and sh.isRespawnInSafehouse then
                     base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
                 end
                 base.owner = sh:getOwner() or base.owner
@@ -537,6 +541,11 @@ function MultiSafehouseWindow:updatePermissionControls()
     local canManage = isOwner or isAdmin
 
     -- Set Respawn: Allowed for both Owner and Member
+    if base.isRespawn then
+        self.respawnBtn:setTitle(getText("UI_MultiSafehouse_UnsetRespawn", "Unset Respawn"))
+    else
+        self.respawnBtn:setTitle(getText("UI_MultiSafehouse_SetRespawn", "Set Respawn"))
+    end
     self.respawnBtn:setEnable(true)
     self.respawnBtn:setTooltip(nil)
 
@@ -603,6 +612,7 @@ end
 
 -- Requests the freshest safehouse list from server
 function MultiSafehouseWindow:onRefresh()
+    self:refreshList()
     local player = getPlayer()
     if player then
         sendClientCommand(player, "MultiSafehouse", "requestData", { reason = "manualRefresh" })
@@ -624,9 +634,9 @@ function MultiSafehouseWindow:onRename()
     local screenH = getCore():getScreenHeight()
     local modal = ISTextBox:new(
         (screenW - 300) / 2,
-        (screenH - 100) / 2,
-        300, 100,
-        "Enter new name (max 32 chars):",
+        (screenH - 120) / 2,
+        300, 120,
+        getText("UI_MultiSafehouse_RenamePrompt", "Enter new name (max 32 chars):"),
         currentName,
         self,
         MultiSafehouseWindow.onRenameConfirm
@@ -640,34 +650,44 @@ function MultiSafehouseWindow:onRenameConfirm(button)
         local newName = button.parent.entry:getText()
         if newName and newName ~= "" then
             local player = getPlayer()
-            if player then
-                local selectedIndex = self.renameIndex or self.baseList.selected
-                local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
-                local baseObj = selectedItem and selectedItem.item or nil
+            local username = player and player:getUsername() or ""
+            local selectedIndex = self.renameIndex or self.baseList.selected
+            local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+            local baseObj = selectedItem and selectedItem.item or nil
 
-                if baseObj and baseObj.x and baseObj.y then
-                    local sh = findClientSafehouse(baseObj.x, baseObj.y)
-                    if sh then
-                        pcall(function() sh:setTitle(newName) end)
-                        if sendSafehouseChangeTitle then
-                            pcall(function() sendSafehouseChangeTitle(sh, newName) end)
+            if baseObj and baseObj.x and baseObj.y then
+                local sh = findClientSafehouse(baseObj.x, baseObj.y)
+                if sh then
+                    pcall(function() sh:setTitle(newName) end)
+                    if sendSafehouseChangeTitle then
+                        pcall(function() sendSafehouseChangeTitle(sh, newName) end)
+                    end
+                end
+            end
+
+            -- Optimistic UI update: reflect new title immediately
+            if baseObj then
+                baseObj.name = newName
+                if username ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[username] then
+                    for _, b in ipairs(MultiSafehouse.playerData[username]) do
+                        if b.x == baseObj.x and b.y == baseObj.y then
+                            b.name = newName
+                            break
                         end
                     end
                 end
 
-                -- Optimistic UI update: reflect new title immediately
-                if baseObj then
-                    baseObj.name = newName
-                    local label = newName
-                    if baseObj.isRespawn then
-                        label = label .. "   [RESPAWN]"
-                    end
-                    if selectedItem then
-                        selectedItem.text = label
-                    end
-                    self:onBaseSelected()
+                local label = newName
+                if baseObj.isRespawn then
+                    label = label .. "   [RESPAWN]"
                 end
+                if selectedItem then
+                    selectedItem.text = label
+                end
+                self:onBaseSelected()
+            end
 
+            if player then
                 sendClientCommand(player, "MultiSafehouse", "renameBase", {
                     index = selectedIndex,
                     x = baseObj and baseObj.x or nil,
@@ -714,18 +734,49 @@ function MultiSafehouseWindow:onReleaseConfirm(button)
         local baseObj = selectedItem and selectedItem.item
         if baseObj then
             local player = getPlayer()
+            local username = player and player:getUsername() or ""
+            local bx = baseObj.x
+            local by = baseObj.y
+
+            -- 1. Native Build 42 safehouse release
+            local sh = findClientSafehouse(bx, by)
+            if sh and sendSafehouseRelease then
+                pcall(function() sendSafehouseRelease(sh) end)
+            end
+
+            -- 2. Mod server command
             if player then
                 sendClientCommand(player, "MultiSafehouse", "releaseBase", {
                     index = selectedIndex,
-                    x = baseObj.x,
-                    y = baseObj.y
+                    x = bx,
+                    y = by
                 })
             end
+
+            -- 3. Optimistic UI update: remove from playerData & baseList
+            if username ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[username] then
+                for idx = #MultiSafehouse.playerData[username], 1, -1 do
+                    local b = MultiSafehouse.playerData[username][idx]
+                    if b.x == bx and b.y == by then
+                        table.remove(MultiSafehouse.playerData[username], idx)
+                        break
+                    end
+                end
+            end
+
+            table.remove(self.baseList.items, selectedIndex)
+            self.baseList.count = #self.baseList.items
+            if self.baseList.count > 0 then
+                self.baseList.selected = math.min(selectedIndex, self.baseList.count)
+            else
+                self.baseList.selected = 0
+            end
+            self:onBaseSelected()
         end
     end
 end
 
--- Set respawn on selected base
+-- Set/Unset respawn on selected base
 function MultiSafehouseWindow:onSetRespawn()
     local selectedIndex = self.baseList.selected
     if not selectedIndex or selectedIndex < 1 then return end
@@ -735,11 +786,74 @@ function MultiSafehouseWindow:onSetRespawn()
 
     local baseObj = selectedItem.item
     local player = getPlayer()
+    local username = player and player:getUsername() or ""
+
+    local newRespawnState = not (baseObj.isRespawn == true)
+
+    -- 1. Native Build 42 safehouse respawn
+    local sh = findClientSafehouse(baseObj.x, baseObj.y)
+    if sh then
+        pcall(function()
+            if sh.setRespawnInSafehouse then
+                sh:setRespawnInSafehouse(newRespawnState, username)
+            end
+            if sendSafehouseChangeRespawn then
+                sendSafehouseChangeRespawn(sh, username, newRespawnState)
+            end
+        end)
+    end
+
+    -- 2. Optimistic UI update across all bases in list
+    for i, itm in ipairs(self.baseList.items) do
+        local b = itm.item
+        if b then
+            if b == baseObj then
+                b.isRespawn = newRespawnState
+            elseif newRespawnState == true then
+                b.isRespawn = false
+                local otherSh = findClientSafehouse(b.x, b.y)
+                if otherSh then
+                    pcall(function()
+                        if otherSh.setRespawnInSafehouse then
+                            otherSh:setRespawnInSafehouse(false, username)
+                        end
+                        if sendSafehouseChangeRespawn then
+                            sendSafehouseChangeRespawn(otherSh, username, false)
+                        end
+                    end)
+                end
+            end
+
+            local name = b.name or ("Base #" .. i)
+            if b.isRespawn then
+                itm.text = name .. "   [RESPAWN]"
+            else
+                itm.text = name
+            end
+        end
+    end
+
+    -- 3. Update MultiSafehouse.playerData
+    if username ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[username] then
+        for _, b in ipairs(MultiSafehouse.playerData[username]) do
+            if b.x == baseObj.x and b.y == baseObj.y then
+                b.isRespawn = newRespawnState
+            elseif newRespawnState == true then
+                b.isRespawn = false
+            end
+        end
+    end
+
+    -- 4. Optimistically update labels and respawn button title
+    self:onBaseSelected()
+
+    -- 5. Send server command
     if player then
         sendClientCommand(player, "MultiSafehouse", "setRespawn", {
             index = selectedIndex,
             x = baseObj.x,
-            y = baseObj.y
+            y = baseObj.y,
+            isRespawn = newRespawnState
         })
     end
 end
@@ -787,14 +901,55 @@ end
 
 function MultiSafehouseWindow:onKickMemberConfirm(button)
     if button.internal == "YES" and self.pendingKickTarget and self.pendingKickBase then
+        local target = self.pendingKickTarget
+        local baseObj = self.pendingKickBase
         local player = getPlayer()
+        local username = player and player:getUsername() or ""
+
+        -- 1. Native Build 42 safehouse member removal
+        local sh = findClientSafehouse(baseObj.x, baseObj.y)
+        if sh then
+            pcall(function()
+                if sh.removePerson then sh:removePerson(target) end
+                if sendSafehouseChangeMember then
+                    sendSafehouseChangeMember(sh, target)
+                end
+            end)
+        end
+
+        -- 2. Mod server command
         if player then
             sendClientCommand(player, "MultiSafehouse", "kickMember", {
-                x = self.pendingKickBase.x,
-                y = self.pendingKickBase.y,
-                targetUsername = self.pendingKickTarget
+                x = baseObj.x,
+                y = baseObj.y,
+                targetUsername = target
             })
         end
+
+        -- 3. Optimistic UI update: remove member from baseObj.members & playerData
+        if baseObj.members then
+            for idx = #baseObj.members, 1, -1 do
+                if baseObj.members[idx] == target then
+                    table.remove(baseObj.members, idx)
+                    break
+                end
+            end
+        end
+
+        if username ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[username] then
+            for _, b in ipairs(MultiSafehouse.playerData[username]) do
+                if b.x == baseObj.x and b.y == baseObj.y and b.members then
+                    for idx = #b.members, 1, -1 do
+                        if b.members[idx] == target then
+                            table.remove(b.members, idx)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        self:onBaseSelected()
     end
     self.pendingKickTarget = nil
     self.pendingKickBase = nil
@@ -822,19 +977,61 @@ function MultiSafehouseWindow:onLeaveBase()
     modal:initialise()
     modal:addToUIManager()
     self.pendingLeaveBase = baseObj
+    self.pendingLeaveIndex = selectedIndex
 end
 
 function MultiSafehouseWindow:onLeaveBaseConfirm(button)
     if button.internal == "YES" and self.pendingLeaveBase then
+        local baseObj = self.pendingLeaveBase
+        local leaveIdx = self.pendingLeaveIndex or self.baseList.selected
         local player = getPlayer()
+        local username = player and player:getUsername() or ""
+        local bx = baseObj.x
+        local by = baseObj.y
+
+        -- 1. Native Build 42 safehouse member leave
+        local sh = findClientSafehouse(bx, by)
+        if sh and username ~= "" then
+            pcall(function()
+                if sh.removePerson then sh:removePerson(username) end
+                if sendSafehouseChangeMember then
+                    sendSafehouseChangeMember(sh, username)
+                end
+            end)
+        end
+
+        -- 2. Mod server command
         if player then
             sendClientCommand(player, "MultiSafehouse", "leaveBase", {
-                x = self.pendingLeaveBase.x,
-                y = self.pendingLeaveBase.y
+                x = bx,
+                y = by
             })
+        end
+
+        -- 3. Optimistic UI update: remove base from playerData & baseList
+        if username ~= "" and MultiSafehouse.playerData and MultiSafehouse.playerData[username] then
+            for idx = #MultiSafehouse.playerData[username], 1, -1 do
+                local b = MultiSafehouse.playerData[username][idx]
+                if b.x == bx and b.y == by then
+                    table.remove(MultiSafehouse.playerData[username], idx)
+                    break
+                end
+            end
+        end
+
+        if leaveIdx and leaveIdx >= 1 and leaveIdx <= #self.baseList.items then
+            table.remove(self.baseList.items, leaveIdx)
+            self.baseList.count = #self.baseList.items
+            if self.baseList.count > 0 then
+                self.baseList.selected = math.min(leaveIdx, self.baseList.count)
+            else
+                self.baseList.selected = 0
+            end
+            self:onBaseSelected()
         end
     end
     self.pendingLeaveBase = nil
+    self.pendingLeaveIndex = nil
 end
 
 -- =============================================
@@ -950,7 +1147,7 @@ local function onSafehousesChanged()
                 base.h = sh:getH()
                 base.owner = sh:getOwner()
                 base.isOwner = (sh:getOwner() == username)
-                if sh.isRespawnInSafehouse then
+                if base.isRespawn == nil and sh.isRespawnInSafehouse then
                     base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
                 end
                 base.members = extractSafehouseMembersClient(sh, sh:getOwner())

@@ -13,6 +13,7 @@
     "UI_MultiSafehouse_KickMember": "- Kick Member",
     "UI_MultiSafehouse_LeaveBase": "Leave Base",
     "UI_MultiSafehouse_SetRespawn": "Set Respawn",
+    "UI_MultiSafehouse_UnsetRespawn": "Unset Respawn",
     "UI_MultiSafehouse_Rename": "Rename",
     "UI_MultiSafehouse_Release": "Release",
     "UI_MultiSafehouse_Refresh": "Refresh",
