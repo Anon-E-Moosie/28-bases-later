@@ -6,7 +6,7 @@
 
 MultiSafehouse = MultiSafehouse or {}
 
-MultiSafehouse.version = "1.1.0"
+MultiSafehouse.version = "1.0.3"
 
 -- Default fallback values (used if SandboxVars are not yet initialized)
 MultiSafehouse.maxBasesPerPlayer = 28

@@ -14,6 +14,7 @@ Why settle for one safehouse when Knox County is full of empty houses?
 - **Rename Bases:** Give your bases custom names so you know which one is which.
 - **Choose Your Respawn:** Pick which base you want to respawn at after you die.
 - **Release Bases:** Easily release any base you don't need anymore.
+- **Safehouse Loot Tracking:** Hover over items while looting to see if, how many, and where you have them stored across your bases.
 
 ---
 
@@ -28,7 +29,6 @@ Why settle for one safehouse when Knox County is full of empty houses?
 
 ## Planned Features
 
-- **Basic Loot Tracking:** Easily track what loot you already have stored at certain bases while exploring Knox Country.
 - **"See on Map" Button:** A button in the 28BL menu that opens your map and centers it directly on the selected base.
 - **Custom Keybind:** Option to change the menu keybind in settings if you don't want to use F7.
 - **Sharing & Co-ownership:** Better sharing options for friends and faction members.
@@ -65,6 +65,10 @@ That is not to say this mod does not have other bugs, I intend to openly support
 ---
 
 ## Changelog
+
+**v1.0.3**
+ - Added basic loot tracking for items within your safehouses: hover over any item while out looting to instantly see if you already have it stored at home, how many, and at which safehouse.
+ - Fixed tooltip translation tokens with native Build 42 UI.json localization.
 
 **V1.0.2**
  - Saved base names now load automatically when joining a server and will no longer revert on rejoin
