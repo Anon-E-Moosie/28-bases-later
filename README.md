@@ -9,12 +9,15 @@ Why settle for one safehouse when Knox County is full of empty houses?
 
 ## Features
 
-- **Multiple Safehouses:** Claim more than one base (default limit is 28, configurable by admins).
-- **28BL Menu:** Press **F7** to open the 28BL menu and view all your claimed bases in a clean, resizable window.
-- **Rename Bases:** Give your bases custom names so you know which one is which.
-- **Choose Your Respawn:** Pick which base you want to respawn at after you die.
-- **Release Bases:** Easily release any base you don't need anymore.
-- **Safehouse Loot Tracking:** Hover over items while looting to see if, how many, and where you have them stored across your bases.
+- **Multiple Safehouses:** Claim more than one base (default limit is 28, configurable by admins or set to 0 for unlimited).
+- **28BL Management Dashboard:** Press **F7** to open the 28BL menu and view all your claimed and shared bases in a clean, resizable two-column window.
+- **Safehouse Co-Ownership & Memberships:** Invite friends to your safehouses with a dedicated Online Player Picker dialog (`+ Add Member`). View whitelisted members, evict members (`- Kick Member`), or voluntarily depart shared safehouses (`Leave Base`).
+- **Quota Isolation:** Joining friends' safehouses as a member never consumes your personal claim limit.
+- **Rename Bases:** Give your bases custom names with 100% reconnect and server restart persistence.
+- **Choose Your Respawn:** Pick which base you want to respawn at after you die. Co-owners and members can independently choose their own respawn locations.
+- **Release Bases:** Easily release any base you don't need anymore with confirmation prompts.
+- **Safehouse Loot Tracking:** Hover over items while looting to see if, how many, and where you have them stored across all your owned and shared bases.
+- **Admin & Anti-Griefing Controls:** Server admins can restrict non-residential claims, protect spawn points, limit maximum building dimensions, set days-survived claim requirements, and toggle admin bypass in native Sandbox Options.
 
 ---
 
@@ -23,7 +26,7 @@ Why settle for one safehouse when Knox County is full of empty houses?
 1. Walk into any unclaimed building.
 2. Right-click inside and claim the safehouse like normal.
 3. Press **F7** to open the 28BL menu.
-4. Select a base from the list to rename it, set it as your respawn location, or release it.
+4. Select a base from the list to rename it, set/unset it as your personal respawn location, invite members, or release it.
 
 ---
 
@@ -31,17 +34,16 @@ Why settle for one safehouse when Knox County is full of empty houses?
 
 - **"See on Map" Button:** A button in the 28BL menu that opens your map and centers it directly on the selected base.
 - **Custom Keybind:** Option to change the menu keybind in settings if you don't want to use F7.
-- **Sharing & Co-ownership:** Better sharing options for friends and faction members.
-- **Improved anti-griefing controls:** Prevent mass claiming of properties and improved safehouse management for server admins
+- **Activity Decay & Claim Cooldowns:** Optional automatic release for inactive safehouses and claim velocity rate-limiting for high-population servers.
 
 ---
 
 ## Compatibility
 
-- Project Zomboid **Build 42**
-- Multiplayer (Dedicated Server & Co-Op)
-- Safe to add to existing saves
-- Haven't properly tested with mods such as Better Safehouses yet, may cause conflicts
+- Project Zomboid **Build 42+**
+- Multiplayer (Dedicated Server & Co-Op) and Single-Player
+- Safe to add to existing saves and active servers mid-game
+- Synchronized with Build 42 native safehouses and compatible with other safehouse mods (e.g. Better Safehouse)
 
 ---
 
@@ -66,9 +68,32 @@ That is not to say this mod does not have other bugs, I intend to openly support
 
 ## Changelog
 
+**v1.1.0**
+- **Safehouse Co-Ownership & Member Whitelisting:**
+  - Added safehouse member sharing! Safehouse owners can now invite friends and faction members to their bases.
+  - Dedicated **Online Player Picker** modal dialog (`+ Add Member`) listing active online players, automatically filtering out invalid targets.
+  - Interactive **Whitelisted Members Roster** displaying `[Owner]` (highlighted in gold) and `[Member]` (soft cyan).
+  - Owners can evict members with `- Kick Member` (with confirmation dialog and native boundary eviction).
+  - Members can voluntarily leave shared safehouses at any time with `Leave Base`.
+  - **Quota Isolation:** Belonging to shared safehouses as a member never consumes or penalizes your personal safehouse claim quota (`MaxBasesPerPlayer`).
+  - **Independent Respawn Points:** Members can set shared safehouses as their personal respawn without altering the owner's respawn.
+  - **Loot Tracking Integration:** Items stored in co-owned safehouses you belong to are automatically indexed in your "At Your Bases" inventory tooltips.
+- **Modern Two-Column Dashboard (F7):**
+  - Completely redesigned management window (640x420) featuring proportional column resizing, centered item text, and aligned selection highlights.
+  - Added optimistic UI reactivity across all action buttons (`Set Respawn`, `Rename`, `Release`, `Kick Member`, `Leave Base`, `+ Add Member`) for instant visual feedback.
+  - Fully compliant with Build 42 native engine methods and immune to Java packet anti-cheat drops.
+
+**v1.0.4**
+- **Safehouse Claim Restrictions & Anti-Griefing Controls:**
+  - Added `Allow Non-Residential Claims` sandbox option to toggle claiming of commercial, industrial, and military buildings.
+  - Added `Allow Spawn Point Claims` sandbox option to protect server spawn buildings from being claimed.
+  - Added `Days Survived to Claim` sandbox option to require character survival before safehouse claiming.
+  - Added `Admins Bypass Claim Restrictions` sandbox option allowing server staff to bypass all claim rules.
+  - Relocated all mod settings directly into native, admin-locked Sandbox Options under a dedicated "28 Bases Later" section, removing confusing mod menu clutter.
+
 **v1.0.3**
- - Added basic loot tracking for items within your safehouses: hover over any item while out looting to instantly see if you already have it stored at home, how many, and at which safehouse.
- - Fixed tooltip translation tokens with native Build 42 UI.json localization.
+- Added basic loot tracking for items within your safehouses: hover over any item while out looting to instantly see if you already have it stored at home, how many, and at which safehouse.
+- Fixed tooltip translation tokens with native Build 42 UI.json localization.
 
 **V1.0.2**
  - Saved base names now load automatically when joining a server and will no longer revert on rejoin
