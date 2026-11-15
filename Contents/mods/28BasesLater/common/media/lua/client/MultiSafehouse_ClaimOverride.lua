@@ -63,7 +63,14 @@ local function doClaimBase(arg1, arg2, arg3)
 
         local username = playerObj:getUsername()
         local currentBases = MultiSafehouse.playerData[username]
-        local currentBasesCount = currentBases and #currentBases or 0
+        local currentBasesCount = 0
+        if currentBases then
+            for _, b in ipairs(currentBases) do
+                if b.isOwner ~= false and (b.owner == nil or b.owner == username) then
+                    currentBasesCount = currentBasesCount + 1
+                end
+            end
+        end
 
         -- Validate with shared security engine before sending packet
         if MultiSafehouse.Validation and MultiSafehouse.Validation.canClaimSafehouse then
@@ -133,7 +140,14 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldobjects, te
 
         local username = player:getUsername()
         local currentBases = MultiSafehouse.playerData[username]
-        local currentBasesCount = currentBases and #currentBases or 0
+        local currentBasesCount = 0
+        if currentBases then
+            for _, b in ipairs(currentBases) do
+                if b.isOwner ~= false and (b.owner == nil or b.owner == username) then
+                    currentBasesCount = currentBasesCount + 1
+                end
+            end
+        end
 
         -- Query shared validation engine for claim eligibility
         local canClaim = true

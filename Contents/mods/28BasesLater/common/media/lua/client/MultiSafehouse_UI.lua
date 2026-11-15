@@ -2,20 +2,23 @@
 -- 28 Bases Later — Management UI (Client-Side)
 -- =============================================
 -- The base management window (F7).
--- Allows viewing owned safehouses, renaming them, setting active respawn,
--- and releasing unwanted safehouses.
+-- Features a two-column layout:
+-- Left Column:  List of claimed and shared safehouses with owner/member tags.
+-- Right Column: Base details, active member roster, and member management controls.
+-- Bottom Row:   Active respawn designation, renaming, releasing, and refreshing.
 
 require "ISUI/ISCollapsableWindow"
 require "ISUI/ISScrollingListBox"
 require "ISUI/ISButton"
 require "ISUI/ISTextBox"
 require "ISUI/ISModalDialog"
+require "ISUI/ISLabel"
 
 MultiSafehouseWindow = ISCollapsableWindow:derive("MultiSafehouseWindow")
 
 function MultiSafehouseWindow:initialise()
     ISCollapsableWindow.initialise(self)
-    self:setTitle("28 Bases Later")
+    self:setTitle(getText("UI_MultiSafehouse_WindowTitle", "28 Bases Later"))
 end
 
 function MultiSafehouseWindow:createChildren()
@@ -27,15 +30,23 @@ function MultiSafehouseWindow:createChildren()
     local btnH = 26
     local btnW = 85
 
-    -- Clearance from the bottom edge so buttons never overlap the resize handle
     local bottomOffset = rh + 10
+    local bottomRowY = self.height - bottomOffset - btnH
+
+    -- Dimension allocations for Two-Column layout
+    local col1W = 250
+    local col2X = pad + col1W + pad
+    local col2W = self.width - col2X - pad
+
+    -- =========================================================
+    -- LEFT COLUMN: Base List
+    -- =========================================================
     local listBottomMargin = bottomOffset + btnH + 10
 
-    -- 1. Scrollable Base List (Anchored to all 4 edges to resize smoothly)
     self.baseList = ISScrollingListBox:new(
         pad,
         th + pad,
-        self.width - pad * 2,
+        col1W,
         self.height - th - pad - listBottomMargin
     )
     self.baseList:initialise()
@@ -43,37 +54,152 @@ function MultiSafehouseWindow:createChildren()
     self.baseList.itemheight = 36
     self.baseList.drawBorder = true
     self.baseList.doDrawItem = MultiSafehouseWindow.drawBaseItem
+    self.baseList.onMouseDown = function(list, x, y)
+        local row = ISScrollingListBox.onMouseDown(list, x, y)
+        local win = list.parent
+        if win and win.onBaseSelected then
+            win:onBaseSelected()
+        end
+        return row
+    end
     self.baseList:setAnchorLeft(true)
-    self.baseList:setAnchorRight(true)
+    self.baseList:setAnchorRight(false)
     self.baseList:setAnchorTop(true)
     self.baseList:setAnchorBottom(true)
     self:addChild(self.baseList)
 
-    -- 2. "Set Respawn" Button
+    -- =========================================================
+    -- RIGHT COLUMN: Base Details & Member Management
+    -- =========================================================
+    local curY = th + pad
+
+    -- 1. Base Name Header
+    self.baseNameLabel = ISLabel:new(col2X, curY, 22, "Select a safehouse", 1, 1, 1, 1, UIFont.Medium, true)
+    self.baseNameLabel:initialise()
+    self:addChild(self.baseNameLabel)
+    curY = curY + 24
+
+    -- 2. Owner Label
+    self.baseOwnerLabel = ISLabel:new(col2X, curY, 18, "Owner: -", 0.85, 0.85, 0.85, 1, UIFont.Small, true)
+    self.baseOwnerLabel:initialise()
+    self:addChild(self.baseOwnerLabel)
+    curY = curY + 18
+
+    -- 3. Dimensions & Coords Label
+    self.baseCoordsLabel = ISLabel:new(col2X, curY, 18, "Dimensions: -", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
+    self.baseCoordsLabel:initialise()
+    self:addChild(self.baseCoordsLabel)
+    curY = curY + 18
+
+    -- 4. Personal Respawn Status
+    self.baseRespawnLabel = ISLabel:new(col2X, curY, 18, "Personal Respawn: Inactive", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
+    self.baseRespawnLabel:initialise()
+    self:addChild(self.baseRespawnLabel)
+    curY = curY + 22
+
+    -- 5. Members Section Header
+    self.membersHeaderLabel = ISLabel:new(col2X, curY, 18, getText("UI_MultiSafehouse_MembersHeader", "Whitelisted Members:"), 1, 0.85, 0.4, 1, UIFont.Small, true)
+    self.membersHeaderLabel:initialise()
+    self:addChild(self.membersHeaderLabel)
+    curY = curY + 20
+
+    -- 6. Member Scrolling List
+    local memberListH = 140
+    self.memberList = ISScrollingListBox:new(
+        col2X,
+        curY,
+        col2W,
+        memberListH
+    )
+    self.memberList:initialise()
+    self.memberList:instantiate()
+    self.memberList.itemheight = 24
+    self.memberList.drawBorder = true
+    self.memberList.doDrawItem = MultiSafehouseWindow.drawMemberItem
+    self.memberList.onMouseDown = function(list, x, y)
+        local row = ISScrollingListBox.onMouseDown(list, x, y)
+        local win = list.parent
+        if win and win.updatePermissionControls then
+            win:updatePermissionControls()
+        end
+        return row
+    end
+    self:addChild(self.memberList)
+    curY = curY + memberListH + 8
+
+    -- 7. Member Action Button Row
+    local subBtnW = math.floor((col2W - 16) / 3)
+
+    self.addMemberBtn = ISButton:new(
+        col2X,
+        curY,
+        subBtnW,
+        24,
+        getText("UI_MultiSafehouse_AddMember", "+ Add Member"),
+        self,
+        MultiSafehouseWindow.onAddMember
+    )
+    self.addMemberBtn:initialise()
+    self.addMemberBtn:instantiate()
+    self.addMemberBtn.borderColor = {r=0.2, g=0.5, b=0.2, a=1}
+    self:addChild(self.addMemberBtn)
+
+    self.kickMemberBtn = ISButton:new(
+        col2X + subBtnW + 8,
+        curY,
+        subBtnW,
+        24,
+        getText("UI_MultiSafehouse_KickMember", "- Kick Member"),
+        self,
+        MultiSafehouseWindow.onKickMember
+    )
+    self.kickMemberBtn:initialise()
+    self.kickMemberBtn:instantiate()
+    self.kickMemberBtn.borderColor = {r=0.6, g=0.2, b=0.2, a=1}
+    self:addChild(self.kickMemberBtn)
+
+    self.leaveBaseBtn = ISButton:new(
+        col2X + (subBtnW + 8) * 2,
+        curY,
+        subBtnW,
+        24,
+        getText("UI_MultiSafehouse_LeaveBase", "Leave Base"),
+        self,
+        MultiSafehouseWindow.onLeaveBase
+    )
+    self.leaveBaseBtn:initialise()
+    self.leaveBaseBtn:instantiate()
+    self.leaveBaseBtn.borderColor = {r=0.5, g=0.3, b=0.1, a=1}
+    self:addChild(self.leaveBaseBtn)
+
+    -- =========================================================
+    -- BOTTOM ROW: Global Actions
+    -- =========================================================
+    -- "Set Respawn" Button
     self.respawnBtn = ISButton:new(
         pad,
-        self.height - bottomOffset - btnH,
+        bottomRowY,
         btnW + 15,
         btnH,
-        "Set Respawn",
+        getText("UI_MultiSafehouse_SetRespawn", "Set Respawn"),
         self,
         MultiSafehouseWindow.onSetRespawn
     )
     self.respawnBtn:initialise()
     self.respawnBtn:instantiate()
-    self.respawnBtn.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
+    self.respawnBtn.borderColor = {r=0.3, g=0.5, b=0.3, a=1}
     self.respawnBtn:setAnchorLeft(true)
     self.respawnBtn:setAnchorBottom(true)
     self.respawnBtn:setAnchorTop(false)
     self:addChild(self.respawnBtn)
 
-    -- 3. "Rename" Button
+    -- "Rename" Button
     self.renameBtn = ISButton:new(
         self.respawnBtn:getRight() + 8,
-        self.height - bottomOffset - btnH,
+        bottomRowY,
         btnW - 5,
         btnH,
-        "Rename",
+        getText("UI_MultiSafehouse_Rename", "Rename"),
         self,
         MultiSafehouseWindow.onRename
     )
@@ -85,13 +211,13 @@ function MultiSafehouseWindow:createChildren()
     self.renameBtn:setAnchorTop(false)
     self:addChild(self.renameBtn)
 
-    -- 4. "Release" (Delete) Button
+    -- "Release" (Delete) Button
     self.releaseBtn = ISButton:new(
         self.renameBtn:getRight() + 8,
-        self.height - bottomOffset - btnH,
+        bottomRowY,
         btnW - 5,
         btnH,
-        "Release",
+        getText("UI_MultiSafehouse_Release", "Release"),
         self,
         MultiSafehouseWindow.onRelease
     )
@@ -103,13 +229,13 @@ function MultiSafehouseWindow:createChildren()
     self.releaseBtn:setAnchorTop(false)
     self:addChild(self.releaseBtn)
 
-    -- 5. "Refresh" Button (Anchored to right edge)
+    -- "Refresh" Button
     self.refreshBtn = ISButton:new(
         self.width - pad - btnW,
-        self.height - bottomOffset - btnH,
+        bottomRowY,
         btnW,
         btnH,
-        "Refresh",
+        getText("UI_MultiSafehouse_Refresh", "Refresh"),
         self,
         MultiSafehouseWindow.onRefresh
     )
@@ -123,25 +249,60 @@ function MultiSafehouseWindow:createChildren()
     self:addChild(self.refreshBtn)
 end
 
--- Renders each item in the scrollable list with selection highlight
+-- Renders each safehouse in the left list with ownership tag and respawn marker
 function MultiSafehouseWindow:drawBaseItem(y, item, alt)
     local isSelected = (self.selected == item.index)
 
     if isSelected then
-        -- Gold/orange highlight for selected entry
         self:drawRect(0, y, self:getWidth(), item.height - 1, 0.45, 0.75, 0.45, 0.15)
         self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.8, 1.0, 0.7, 0.2)
     else
         self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.2, 0.4, 0.4, 0.4)
     end
 
-    local text = item.text or ""
-    self:drawText(text, 14, y + 8, 1, 1, 1, 1, UIFont.Small)
+    local base = item.item
+    local tag = ""
+    local r, g, b = 1, 1, 1
+
+    if base then
+        if base.isOwner == false then
+            tag = "[MEMBER] "
+            r, g, b = 0.65, 0.85, 1.0 -- Soft cyan for member bases
+        else
+            tag = "[OWNER] "
+            r, g, b = 1.0, 1.0, 1.0
+        end
+    end
+
+    local text = tag .. (item.text or "")
+    self:drawText(text, 10, y + 9, r, g, b, 1, UIFont.Small)
 
     return y + item.height
 end
 
--- Helper to safely locate a native safehouse by coordinates in client memory
+-- Renders each member in the right member roster
+function MultiSafehouseWindow:drawMemberItem(y, item, alt)
+    local isSelected = (self.selected == item.index)
+
+    if isSelected then
+        self:drawRect(0, y, self:getWidth(), item.height - 1, 0.35, 0.2, 0.6, 0.3)
+        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.7, 0.4, 1.0, 0.5)
+    else
+        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.15, 0.3, 0.3, 0.3)
+    end
+
+    local text = item.text or ""
+    local isOwner = string.find(text, "%[Owner%]") ~= nil
+    local r, g, b = 0.9, 0.9, 0.9
+    if isOwner then
+        r, g, b = 1.0, 0.85, 0.3 -- Gold for owner
+    end
+
+    self:drawText(text, 10, y + 4, r, g, b, 1, UIFont.Small)
+
+    return y + item.height
+end
+
 local function findClientSafehouse(x, y)
     if not SafeHouse or not SafeHouse.getSafehouseList then return nil end
     local list = SafeHouse.getSafehouseList()
@@ -152,6 +313,25 @@ local function findClientSafehouse(x, y)
         end
     end
     return nil
+end
+
+local function extractSafehouseMembersClient(sh, ownerUsername)
+    local members = {}
+    if not sh or not sh.getPlayers then return members end
+    local ok, players = pcall(function() return sh:getPlayers() end)
+    if not ok or not players then return members end
+    local okSize, n = pcall(function() return players:size() end)
+    if not okSize or type(n) ~= "number" then return members end
+    for i = 0, n - 1 do
+        local okGet, u = pcall(function() return players:get(i) end)
+        if okGet and u then
+            local uName = tostring(u)
+            if uName ~= "" and uName ~= ownerUsername then
+                table.insert(members, uName)
+            end
+        end
+    end
+    return members
 end
 
 -- Rebuilds list items from cached data, preserving selected row
@@ -165,20 +345,16 @@ function MultiSafehouseWindow:refreshList()
     local username = player:getUsername()
     local safehouses = MultiSafehouse.playerData[username] or {}
 
-    -- 1. If the server has not sent our data yet, show a status message
-    -- instead of inventing fake names and poisoning local memory.
     if not MultiSafehouse.isHydrated then
         self.baseList:addItem("Fetching bases from server...", nil)
+        self:onBaseSelected()
         return
     end
 
-    -- 2. If the server confirmed we own 0 safehouses
     if #safehouses == 0 then
         self.baseList:addItem("No bases claimed yet. Right-click inside a building!", nil)
     else
-        -- 3. Render each genuine base with its real custom name
         for i, base in ipairs(safehouses) do
-            -- Live cross-reference against client's native SafeHouse cache
             local sh = findClientSafehouse(base.x, base.y)
             if sh then
                 if sh.getTitle then
@@ -190,6 +366,9 @@ function MultiSafehouseWindow:refreshList()
                 if sh.isRespawnInSafehouse then
                     base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
                 end
+                base.owner = sh:getOwner() or base.owner
+                base.isOwner = (base.owner == username)
+                base.members = extractSafehouseMembersClient(sh, base.owner)
             end
 
             local label = base.name or ("Base #" .. i)
@@ -200,9 +379,152 @@ function MultiSafehouseWindow:refreshList()
         end
     end
 
-    -- Maintain row selection within valid item count
     if #safehouses > 0 then
         self.baseList.selected = math.max(1, math.min(prevSelected, #safehouses))
+    end
+
+    self:onBaseSelected()
+end
+
+-- Handles base selection: refreshes right panel labels, members, and permissions
+function MultiSafehouseWindow:onBaseSelected()
+    local selectedIndex = self.baseList.selected
+    local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+    local base = selectedItem and selectedItem.item or nil
+
+    local player = getPlayer()
+    local myUsername = player and player:getUsername() or ""
+
+    if not base then
+        self.baseNameLabel:setName("No base selected")
+        self.baseOwnerLabel:setName("Owner: -")
+        self.baseCoordsLabel:setName("Dimensions: -")
+        self.baseRespawnLabel:setName("Personal Respawn: -")
+        self.memberList:clear()
+        self:updatePermissionControls()
+        return
+    end
+
+    local baseTitle = base.name or "Safehouse"
+    self.baseNameLabel:setName(baseTitle)
+
+    local ownerStr = base.owner or myUsername
+    if ownerStr == myUsername then
+        self.baseOwnerLabel:setName("Owner: " .. ownerStr .. " (You)")
+    else
+        self.baseOwnerLabel:setName("Owner: " .. ownerStr)
+    end
+
+    local dimStr = string.format("Dimensions: %dx%d (X: %d, Y: %d)", base.w or 0, base.h or 0, base.x or 0, base.y or 0)
+    self.baseCoordsLabel:setName(dimStr)
+
+    if base.isRespawn then
+        self.baseRespawnLabel:setName("Personal Respawn: ACTIVE")
+    else
+        self.baseRespawnLabel:setName("Personal Respawn: Inactive")
+    end
+
+    -- Populate member roster
+    self.memberList:clear()
+    local ownerName = base.owner or myUsername
+    self.memberList:addItem(ownerName .. "  [Owner]", ownerName)
+
+    if base.members and #base.members > 0 then
+        for _, memberName in ipairs(base.members) do
+            if memberName ~= ownerName then
+                self.memberList:addItem(memberName .. "  [Member]", memberName)
+            end
+        end
+    end
+
+    self:updatePermissionControls()
+end
+
+-- Evaluates role permissions for active player and adjusts UI controls accordingly
+function MultiSafehouseWindow:updatePermissionControls()
+    local selectedIndex = self.baseList.selected
+    local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+    local base = selectedItem and selectedItem.item or nil
+
+    local player = getPlayer()
+    local myUsername = player and player:getUsername() or ""
+    local isAdmin = MultiSafehouse.Validation and MultiSafehouse.Validation.isPlayerAdmin and MultiSafehouse.Validation.isPlayerAdmin(player)
+
+    if not base then
+        self.respawnBtn:setEnable(false)
+        self.renameBtn:setEnable(false)
+        self.releaseBtn:setEnable(false)
+        self.addMemberBtn:setEnable(false)
+        self.kickMemberBtn:setEnable(false)
+        self.leaveBaseBtn:setEnable(false)
+        return
+    end
+
+    local isOwner = (base.isOwner == true) or (base.owner == myUsername)
+    local canManage = isOwner or isAdmin
+
+    -- Set Respawn: Allowed for both Owner and Member
+    self.respawnBtn:setEnable(true)
+    self.respawnBtn:setTooltip(nil)
+
+    -- Rename & Release: Allowed for Owner & Admin only
+    self.renameBtn:setEnable(canManage)
+    if not canManage then
+        self.renameBtn:setTooltip("Only the safehouse owner can rename this base.")
+    else
+        self.renameBtn:setTooltip(nil)
+    end
+
+    self.releaseBtn:setEnable(canManage)
+    if not canManage then
+        self.releaseBtn:setTooltip("Only the safehouse owner can release this base. Use 'Leave Base' to depart.")
+    else
+        self.releaseBtn:setTooltip(nil)
+    end
+
+    local isMultiplayer = isClient() or isServer()
+
+    if not isMultiplayer then
+        self.addMemberBtn:setEnable(false)
+        self.kickMemberBtn:setEnable(false)
+        self.leaveBaseBtn:setEnable(false)
+        self.addMemberBtn:setTooltip("Multiplayer only.")
+        self.kickMemberBtn:setTooltip("Multiplayer only.")
+        self.leaveBaseBtn:setTooltip("Multiplayer only.")
+    else
+        -- Add Member: Allowed for Owner & Admin
+        self.addMemberBtn:setEnable(canManage)
+        if not canManage then
+            self.addMemberBtn:setTooltip("Only the safehouse owner can invite members.")
+        else
+            self.addMemberBtn:setTooltip("Invite an online player to this safehouse.")
+        end
+
+        -- Kick Member: Allowed for Owner & Admin when a non-owner member is selected
+        local selectedMemberIndex = self.memberList.selected
+        local selectedMemberItem = selectedMemberIndex and self.memberList.items[selectedMemberIndex]
+        local memberUsername = selectedMemberItem and selectedMemberItem.item or nil
+
+        local canKickSelected = canManage and memberUsername and (memberUsername ~= base.owner)
+        self.kickMemberBtn:setEnable(canKickSelected == true)
+        if not canManage then
+            self.kickMemberBtn:setTooltip("Only the safehouse owner can remove members.")
+        elseif not memberUsername then
+            self.kickMemberBtn:setTooltip("Select a member from the list to remove.")
+        elseif memberUsername == base.owner then
+            self.kickMemberBtn:setTooltip("Cannot remove the safehouse owner.")
+        else
+            self.kickMemberBtn:setTooltip("Remove " .. memberUsername .. " from this safehouse.")
+        end
+
+        -- Leave Base: Allowed for Members only
+        local canLeave = (not isOwner) and (not isAdmin or base.owner ~= myUsername)
+        self.leaveBaseBtn:setEnable(canLeave)
+        if isOwner then
+            self.leaveBaseBtn:setTooltip("The owner cannot leave their own safehouse. Use 'Release' to abandon.")
+        else
+            self.leaveBaseBtn:setTooltip("Leave this safehouse and revoke your membership.")
+        end
     end
 end
 
@@ -249,23 +571,16 @@ function MultiSafehouseWindow:onRenameConfirm(button)
                 local selectedItem = self.baseList.items[self.renameIndex]
                 local baseObj = selectedItem and selectedItem.item or nil
 
-                -- 1. Native engine title change: updates local SafeHouse object and propagates
-                -- SafehouseSync across client and server so Vanilla UI and Better Safehouse sync
                 if baseObj and baseObj.x and baseObj.y then
                     local sh = findClientSafehouse(baseObj.x, baseObj.y)
                     if sh then
-                        pcall(function()
-                            sh:setTitle(newName)
-                        end)
+                        pcall(function() sh:setTitle(newName) end)
                         if sendSafehouseChangeTitle then
-                            pcall(function()
-                                sendSafehouseChangeTitle(sh, newName)
-                            end)
+                            pcall(function() sendSafehouseChangeTitle(sh, newName) end)
                         end
                     end
                 end
 
-                -- 2. 28BL authoritative server command: updates ModData and triggers syncData
                 sendClientCommand(player, "MultiSafehouse", "renameBase", {
                     index = self.renameIndex,
                     x = baseObj and baseObj.x or nil,
@@ -286,7 +601,8 @@ function MultiSafehouseWindow:onRelease()
     local selectedItem = self.baseList.items[selectedIndex]
     if not selectedItem or not selectedItem.item then return end
 
-    local baseName = selectedItem.item.name or ("Base #" .. selectedIndex)
+    local baseObj = selectedItem.item
+    local baseName = baseObj.name or ("Base #" .. selectedIndex)
 
     local screenW = getCore():getScreenWidth()
     local screenH = getCore():getScreenHeight()
@@ -306,11 +622,15 @@ end
 function MultiSafehouseWindow:onReleaseConfirm(button)
     if button.internal == "YES" then
         local selectedIndex = self.baseList.selected
-        if selectedIndex and selectedIndex >= 1 then
+        local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+        local baseObj = selectedItem and selectedItem.item
+        if baseObj then
             local player = getPlayer()
             if player then
                 sendClientCommand(player, "MultiSafehouse", "releaseBase", {
-                    index = selectedIndex
+                    index = selectedIndex,
+                    x = baseObj.x,
+                    y = baseObj.y
                 })
             end
         end
@@ -333,60 +653,131 @@ function MultiSafehouseWindow:onSetRespawn()
             x = baseObj.x,
             y = baseObj.y
         })
+    end
+end
 
-        -- Native engine network sync so vanilla safehouse checkboxes update instantly
-        if sendSafehouseChangeRespawn and baseObj.x and baseObj.y then
-            local sh = findClientSafehouse(baseObj.x, baseObj.y)
-            if sh then
-                pcall(function()
-                    sendSafehouseChangeRespawn(sh, player:getUsername(), true)
-                end)
-            end
+-- Add Member button clicked: opens player picker dialog
+function MultiSafehouseWindow:onAddMember()
+    local selectedIndex = self.baseList.selected
+    local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+    local baseObj = selectedItem and selectedItem.item
+    if baseObj and MultiSafehouse.openPlayerPicker then
+        MultiSafehouse.openPlayerPicker(baseObj)
+    end
+end
+
+-- Kick Member button clicked: confirms removal of selected member
+function MultiSafehouseWindow:onKickMember()
+    local selectedIndex = self.baseList.selected
+    local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+    local baseObj = selectedItem and selectedItem.item
+    if not baseObj then return end
+
+    local memberIndex = self.memberList.selected
+    local memberItem = memberIndex and self.memberList.items[memberIndex]
+    local targetUsername = memberItem and memberItem.item
+
+    if not targetUsername or targetUsername == baseObj.owner then return end
+
+    local screenW = getCore():getScreenWidth()
+    local screenH = getCore():getScreenHeight()
+    local modal = ISModalDialog:new(
+        (screenW - 350) / 2,
+        (screenH - 120) / 2,
+        "Remove '" .. targetUsername .. "' from safehouse '" .. (baseObj.name or "Base") .. "'?",
+        true,
+        self,
+        MultiSafehouseWindow.onKickMemberConfirm
+    )
+    modal:initialise()
+    modal:addToUIManager()
+    self.pendingKickTarget = targetUsername
+    self.pendingKickBase = baseObj
+end
+
+function MultiSafehouseWindow:onKickMemberConfirm(button)
+    if button.internal == "YES" and self.pendingKickTarget and self.pendingKickBase then
+        local player = getPlayer()
+        if player then
+            sendClientCommand(player, "MultiSafehouse", "kickMember", {
+                x = self.pendingKickBase.x,
+                y = self.pendingKickBase.y,
+                targetUsername = self.pendingKickTarget
+            })
         end
     end
+    self.pendingKickTarget = nil
+    self.pendingKickBase = nil
 end
 
-function MultiSafehouseWindow:new(x, y, width, height)
-    local o = ISCollapsableWindow:new(x, y, width, height)
-    setmetatable(o, self)
-    self.__index = self
-    return o
+-- Leave Base button clicked: confirms departure from member safehouse
+function MultiSafehouseWindow:onLeaveBase()
+    local selectedIndex = self.baseList.selected
+    local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
+    local baseObj = selectedItem and selectedItem.item
+    if not baseObj then return end
+
+    local screenW = getCore():getScreenWidth()
+    local screenH = getCore():getScreenHeight()
+    local modal = ISModalDialog:new(
+        (screenW - 350) / 2,
+        (screenH - 120) / 2,
+        "Leave safehouse '" .. (baseObj.name or "Base") .. "'?\nYou will lose access to this safehouse.",
+        true,
+        self,
+        MultiSafehouseWindow.onLeaveBaseConfirm
+    )
+    modal:initialise()
+    modal:addToUIManager()
+    self.pendingLeaveBase = baseObj
 end
 
--- -----------------------------------------------
--- WINDOW TOGGLE & NETWORKING
--- -----------------------------------------------
-function MultiSafehouse.toggleUI()
-    if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
-        MultiSafehouse.uiWindow:setVisible(false)
-        return
+function MultiSafehouseWindow:onLeaveBaseConfirm(button)
+    if button.internal == "YES" and self.pendingLeaveBase then
+        local player = getPlayer()
+        if player then
+            sendClientCommand(player, "MultiSafehouse", "leaveBase", {
+                x = self.pendingLeaveBase.x,
+                y = self.pendingLeaveBase.y
+            })
+        end
     end
+    self.pendingLeaveBase = nil
+end
+
+-- =============================================
+-- Global Window Management & Networking
+-- =============================================
+
+function MultiSafehouse.toggleUI()
+    local player = getPlayer()
+    if not player then return end
+
+    local username = player:getUsername()
 
     if not MultiSafehouse.uiWindow then
         local screenW = getCore():getScreenWidth()
         local screenH = getCore():getScreenHeight()
-        local winW = 460
-        local winH = 340
-        local x = (screenW - winW) / 2
-        local y = (screenH - winH) / 2
+        local winW = 640
+        local winH = 420
+        local winX = (screenW - winW) / 2
+        local winY = (screenH - winH) / 2
 
-        local window = MultiSafehouseWindow:new(x, y, winW, winH)
-        window:initialise()
-        window:addToUIManager()
-
-        MultiSafehouse.uiWindow = window
+        MultiSafehouse.uiWindow = MultiSafehouseWindow:new(winX, winY, winW, winH)
+        MultiSafehouse.uiWindow:initialise()
+        MultiSafehouse.uiWindow:addToUIManager()
+    else
+        MultiSafehouse.uiWindow:setVisible(not MultiSafehouse.uiWindow:isVisible())
     end
 
-    MultiSafehouse.uiWindow:setVisible(true)
-    MultiSafehouse.uiWindow:refreshList()
-
-    local player = getPlayer()
-    if player then
-        sendClientCommand(player, "MultiSafehouse", "requestData", { reason = "uiToggle" })
+    if MultiSafehouse.uiWindow:isVisible() then
+        if not MultiSafehouse.isHydrated then
+            sendClientCommand(player, "MultiSafehouse", "requestData", { reason = "initialLoad" })
+        end
+        MultiSafehouse.uiWindow:refreshList()
     end
 end
 
--- Updates client cache and refreshes UI when server sends updated list
 local function onServerCommand(module, command, args)
     if module ~= "MultiSafehouse" or not args then return end
 
@@ -426,6 +817,11 @@ local function onServerCommand(module, command, args)
             MultiSafehouse.serverAdminBypassRestrictions = val
             MultiSafehouse.server_AdminBypassRestrictions = val
         end
+    elseif command == "memberNotice" and args.msg then
+        local player = getPlayer()
+        if player and player.Say then
+            player:Say(args.msg)
+        end
     end
 end
 
@@ -435,14 +831,17 @@ local function onSafehousesChanged()
     if not player then return end
     local username = player:getUsername()
 
-    -- 1. Reconcile local client cache against authoritative engine safehouses
     if MultiSafehouse.playerData[username] and SafeHouse and SafeHouse.getSafehouseList then
         local list = SafeHouse.getSafehouseList()
         local activeCoords = {}
         for i = 0, list:size() - 1 do
             local sh = list:get(i)
-            if sh and sh:getOwner() == username then
-                activeCoords[sh:getX() .. "," .. sh:getY()] = sh
+            if sh then
+                local isOwner = (sh:getOwner() == username)
+                local isMember = (sh.getPlayers and sh:getPlayers():contains(username))
+                if isOwner or isMember then
+                    activeCoords[sh:getX() .. "," .. sh:getY()] = sh
+                end
             end
         end
 
@@ -455,19 +854,24 @@ local function onSafehousesChanged()
                 if nativeTitle and nativeTitle ~= "" then
                     base.name = nativeTitle
                 end
+                base.w = sh:getW()
+                base.h = sh:getH()
+                base.owner = sh:getOwner()
+                base.isOwner = (sh:getOwner() == username)
                 if sh.isRespawnInSafehouse then
                     base.isRespawn = (sh:isRespawnInSafehouse(username) == true)
                 end
+                base.members = extractSafehouseMembersClient(sh, sh:getOwner())
                 table.insert(updated, base)
                 activeCoords[key] = nil
             end
         end
 
-        -- Add any safehouses claimed outside 28BL (e.g. via vanilla or Better Safehouse)
         for key, sh in pairs(activeCoords) do
+            local isOwner = (sh:getOwner() == username)
             local baseName = sh:getTitle()
             if not baseName or baseName == "" then
-                baseName = "Base #" .. (#updated + 1)
+                baseName = isOwner and ("Base #" .. (#updated + 1)) or "Shared Safehouse"
             end
             local isResp = false
             if sh.isRespawnInSafehouse then
@@ -479,14 +883,16 @@ local function onSafehousesChanged()
                 w = sh:getW(),
                 h = sh:getH(),
                 name = baseName,
-                isRespawn = isResp
+                owner = sh:getOwner(),
+                isOwner = isOwner,
+                isRespawn = isResp,
+                members = extractSafehouseMembersClient(sh, sh:getOwner())
             })
         end
 
         MultiSafehouse.playerData[username] = updated
     end
 
-    -- 2. Immediately update the 28BL list if currently open
     if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
         MultiSafehouse.uiWindow:refreshList()
     end
@@ -506,4 +912,4 @@ end
 
 Events.OnKeyPressed.Add(onKeyPressed)
 
-print("[28 Bases Later] Management UI initialized.")
+print("[28 Bases Later] Management UI initialized with membership panel.")
