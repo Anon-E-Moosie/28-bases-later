@@ -400,8 +400,32 @@ local function onServerCommand(module, command, args)
         if MultiSafehouse.uiWindow and MultiSafehouse.uiWindow:isVisible() then
             MultiSafehouse.uiWindow:refreshList()
         end
-    elseif command == "syncAdminConfig" and args.maxBases ~= nil then
-        MultiSafehouse.serverMaxBases = tonumber(args.maxBases)
+    elseif command == "syncAdminConfig" then
+        if args.maxBases ~= nil then
+            local val = tonumber(args.maxBases)
+            MultiSafehouse.serverMaxBases = val
+            MultiSafehouse.server_MaxBasesPerPlayer = val
+        end
+        if args.allowNonResidential ~= nil then
+            local val = (args.allowNonResidential == true)
+            MultiSafehouse.serverAllowNonResidential = val
+            MultiSafehouse.server_AllowNonResidential = val
+        end
+        if args.allowSpawnBuildings ~= nil then
+            local val = (args.allowSpawnBuildings == true)
+            MultiSafehouse.serverAllowSpawnBuildings = val
+            MultiSafehouse.server_AllowSpawnBuildings = val
+        end
+        if args.daysSurvivedToClaim ~= nil then
+            local val = tonumber(args.daysSurvivedToClaim)
+            MultiSafehouse.serverDaysSurvivedToClaim = val
+            MultiSafehouse.server_DaysSurvivedToClaim = val
+        end
+        if args.adminBypassRestrictions ~= nil then
+            local val = (args.adminBypassRestrictions == true)
+            MultiSafehouse.serverAdminBypassRestrictions = val
+            MultiSafehouse.server_AdminBypassRestrictions = val
+        end
     end
 end
 

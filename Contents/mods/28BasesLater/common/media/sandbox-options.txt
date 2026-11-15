@@ -1,5 +1,21 @@
 VERSION = 1,
 
+option MultiSafehouse.AllowNonResidential
+{
+    type = boolean,
+    default = false,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_AllowNonResidential,
+}
+
+option MultiSafehouse.AllowSpawnBuildings
+{
+    type = boolean,
+    default = false,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_AllowSpawnBuildings,
+}
+
 option MultiSafehouse.MaxBasesPerPlayer
 {
     type = integer,
@@ -18,4 +34,22 @@ option MultiSafehouse.MaxDimension
     default = 120,
     page = MultiSafehouse,
     translation = MultiSafehouse_MaxDimension,
+}
+
+option MultiSafehouse.DaysSurvivedToClaim
+{
+    type = integer,
+    min = 0,
+    max = 365,
+    default = 0,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_DaysSurvivedToClaim,
+}
+
+option MultiSafehouse.AdminBypassRestrictions
+{
+    type = boolean,
+    default = true,
+    page = MultiSafehouse,
+    translation = MultiSafehouse_AdminBypassRestrictions,
 }

@@ -1,4 +1,10 @@
 UI_EN = {
     UI_28BL_InvTrack_Title = "At Your Bases",
     UI_28BL_InvTrack_More = "more...",
+    UI_28BL_Claim_MaxBasesReached = "Maximum safehouse limit reached (%1 bases).",
+    UI_28BL_Claim_SpawnRestricted = "Spawn location. Cannot be claimed as a safehouse.",
+    UI_28BL_Claim_NonResidentialRestricted = "Non-residential building. Cannot be claimed as a safehouse.",
+    UI_28BL_Claim_DaysRestricted = "Must survive for %1 days before claiming a safehouse.",
+    UI_28BL_Claim_BuildingTooLarge = "Building exceeds maximum allowed dimension (%1 tiles).",
+    UI_28BL_Claim_AdminBypassNotice = "[Admin Bypass] Safehouse restrictions waived.",
 }

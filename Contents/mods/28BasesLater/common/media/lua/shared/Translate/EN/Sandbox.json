@@ -1,7 +1,15 @@
 {
     "Sandbox_MultiSafehouse": "28 Bases Later",
+    "Sandbox_MultiSafehouse_AllowNonResidential": "Allow Non-Residential Claims",
+    "Sandbox_MultiSafehouse_AllowNonResidential_tooltip": "When disabled (recommended), players can only claim residential houses with bedrooms or living rooms. When enabled, commercial, industrial, and public buildings can also be claimed.",
+    "Sandbox_MultiSafehouse_AllowSpawnBuildings": "Allow Spawn Point Claims",
+    "Sandbox_MultiSafehouse_AllowSpawnBuildings_tooltip": "When disabled (recommended), buildings containing map spawn points cannot be claimed as safehouses. When enabled, players can claim spawn houses.",
     "Sandbox_MultiSafehouse_MaxBasesPerPlayer": "Max Bases Per Player",
     "Sandbox_MultiSafehouse_MaxBasesPerPlayer_tooltip": "Maximum number of safehouses a single player may own simultaneously (0-100). Enter 0 for unlimited. Default is 28.",
     "Sandbox_MultiSafehouse_MaxDimension": "Max Building Dimension",
-    "Sandbox_MultiSafehouse_MaxDimension_tooltip": "Maximum building width or length (in tiles) that can be claimed as a safehouse. Default is 120."
+    "Sandbox_MultiSafehouse_MaxDimension_tooltip": "Maximum building width or length (in tiles) that can be claimed as a safehouse. Default is 120.",
+    "Sandbox_MultiSafehouse_DaysSurvivedToClaim": "Days Survived to Claim",
+    "Sandbox_MultiSafehouse_DaysSurvivedToClaim_tooltip": "Number of in-game days a character must survive before safehouse claiming is permitted (0-365). Set to 0 to disable this requirement.",
+    "Sandbox_MultiSafehouse_AdminBypassRestrictions": "Admins Bypass Claim Restrictions",
+    "Sandbox_MultiSafehouse_AdminBypassRestrictions_tooltip": "When enabled, server administrators and debug mode players bypass spawn building, non-residential, and days survived restrictions."
 }

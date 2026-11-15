@@ -8,20 +8,36 @@ local function getModData()
     return ModData.getOrCreate("28BasesLater")
 end
 
+-- Staff/admin roles recognized by Project Zomboid Build 42
+local ADMIN_ROLES = {
+    ["admin"] = true,
+    ["moderator"] = true,
+    ["overseer"] = true,
+    ["gm"] = true,
+    ["observer"] = true,
+}
+
 local function isPlayerAdmin(player)
+    if MultiSafehouse.Validation and MultiSafehouse.Validation.isPlayerAdmin then
+        return MultiSafehouse.Validation.isPlayerAdmin(player)
+    end
     if not player then return false end
-    if player.getAccessLevel then
-        local access = player:getAccessLevel()
-        if access and access ~= "" and access ~= "none" then
-            return true
+    if isAdmin and type(isAdmin) == "function" then
+        local ok, res = pcall(isAdmin)
+        if ok and res == true then return true end
+    end
+    if player.getRole then
+        local ok, role = pcall(function() return player:getRole() end)
+        if ok and role then
+            if role.hasAdminPower and role:hasAdminPower() then return true end
+            if role.getName and ADMIN_ROLES[string.lower(tostring(role:getName()))] then return true end
         end
     end
-    if player.isAdmin and player:isAdmin() then
-        return true
+    if player.getAccessLevel then
+        local access = string.lower(player:getAccessLevel() or "")
+        if ADMIN_ROLES[access] then return true end
     end
-    if not isClient() and not isServer() then
-        return true
-    end
+    if not isClient() and not isServer() then return true end
     return false
 end
 
@@ -30,6 +46,23 @@ local function onInitGlobalModData(isNewGame)
     local config = ModData.getOrCreate("28BasesLater_Config")
     if config.maxBasesPerPlayer ~= nil then
         MultiSafehouse.serverMaxBases = config.maxBasesPerPlayer
+        MultiSafehouse.server_MaxBasesPerPlayer = config.maxBasesPerPlayer
+    end
+    if config.allowNonResidential ~= nil then
+        MultiSafehouse.serverAllowNonResidential = config.allowNonResidential
+        MultiSafehouse.server_AllowNonResidential = config.allowNonResidential
+    end
+    if config.allowSpawnBuildings ~= nil then
+        MultiSafehouse.serverAllowSpawnBuildings = config.allowSpawnBuildings
+        MultiSafehouse.server_AllowSpawnBuildings = config.allowSpawnBuildings
+    end
+    if config.daysSurvivedToClaim ~= nil then
+        MultiSafehouse.serverDaysSurvivedToClaim = config.daysSurvivedToClaim
+        MultiSafehouse.server_DaysSurvivedToClaim = config.daysSurvivedToClaim
+    end
+    if config.adminBypassRestrictions ~= nil then
+        MultiSafehouse.serverAdminBypassRestrictions = config.adminBypassRestrictions
+        MultiSafehouse.server_AdminBypassRestrictions = config.adminBypassRestrictions
     end
 end
 Events.OnInitGlobalModData.Add(onInitGlobalModData)
@@ -243,7 +276,24 @@ local function onClientCommand(module, command, player, args)
             return
         end
 
-        -- SECURITY 3: Enforce maximum bases per player (0 = unlimited)
+        -- SECURITY 3: Run authoritative claim validation engine
+        local square = player:getSquare()
+        if not square then
+            square = getSquare(x + math.floor(w / 2), y + math.floor(h / 2), 0)
+        end
+
+        if MultiSafehouse.Validation and MultiSafehouse.Validation.canClaimSafehouse then
+            local canClaim, reasons = MultiSafehouse.Validation.canClaimSafehouse(square, player, #playerSafehouses)
+            if not canClaim then
+                local firstReason = (reasons and reasons[1]) or "Cannot claim safehouse!"
+                local displayMsg = (getTextOrNull and getTextOrNull(firstReason)) or firstReason
+                player:Say(displayMsg)
+                print("[28 Bases Later] Server rejected claim by " .. username .. ": " .. tostring(firstReason))
+                return
+            end
+        end
+
+        -- SECURITY 4: Enforce maximum bases per player (0 = unlimited)
         local maxBases = MultiSafehouse.getMaxBasesPerPlayer()
         if maxBases > 0 and #playerSafehouses >= maxBases then
             player:Say("Max safehouse limit reached (" .. maxBases .. ")!")
@@ -276,10 +326,14 @@ local function onClientCommand(module, command, player, args)
 
         -- Set the native title on the newly created safehouse
         local sh = (type(result) == "userdata" and result) or findNativeSafehouse(x, y)
-        if sh then
-            if sh.setTitle then sh:setTitle(baseName) end
-            if sh.syncSafehouse then sh:syncSafehouse() end
+        if not sh then
+            print("[28 Bases Later] Error: Engine refused to create SafeHouse at (" .. x .. "," .. y .. ")")
+            player:Say("Cannot claim safehouse (Building claim refused).")
+            return
         end
+
+        if sh.setTitle then sh:setTitle(baseName) end
+        if sh.syncSafehouse then sh:syncSafehouse() end
 
         -- Deduplicate: check if this (x, y) already exists
         local alreadyExists = false
@@ -456,6 +510,14 @@ local function onClientCommand(module, command, player, args)
         sendServerCommand(player, "MultiSafehouse", "syncData", {
             safehouses = playerSafehouses
         })
+        -- Synchronize authoritative server settings to client
+        sendServerCommand(player, "MultiSafehouse", "syncAdminConfig", {
+            maxBases = MultiSafehouse.getMaxBasesPerPlayer(),
+            allowNonResidential = MultiSafehouse.isAllowNonResidential(),
+            allowSpawnBuildings = MultiSafehouse.isAllowSpawnBuildings(),
+            daysSurvivedToClaim = MultiSafehouse.getDaysSurvivedToClaim(),
+            adminBypassRestrictions = MultiSafehouse.isAdminBypassRestrictions()
+        })
 
     -- -------------------------------------------
     -- COMMAND: "setAdminConfig"
@@ -466,28 +528,100 @@ local function onClientCommand(module, command, player, args)
             return
         end
 
-        local requestedCap = tonumber(args.maxBases)
-        if requestedCap ~= nil then
-            local sanitizedCap = math.max(0, math.min(100, math.floor(requestedCap)))
+        local configData = ModData.getOrCreate("28BasesLater_Config")
+        local broadcastPayload = {}
+
+        if args.maxBases ~= nil then
+            local sanitizedCap = math.max(0, math.min(100, math.floor(tonumber(args.maxBases) or 28)))
             MultiSafehouse.serverMaxBases = sanitizedCap
-
-            local configData = ModData.getOrCreate("28BasesLater_Config")
+            MultiSafehouse.server_MaxBasesPerPlayer = sanitizedCap
             configData.maxBasesPerPlayer = sanitizedCap
+            broadcastPayload.maxBases = sanitizedCap
+            if SandboxVars and SandboxVars.MultiSafehouse then
+                SandboxVars.MultiSafehouse.MaxBasesPerPlayer = sanitizedCap
+            end
+        end
 
-            local players = getOnlinePlayers and getOnlinePlayers() or nil
-            if players then
-                for i = 0, players:size() - 1 do
-                    local p = players:get(i)
-                    if p then
-                        sendServerCommand(p, "MultiSafehouse", "syncAdminConfig", {
-                            maxBases = sanitizedCap
-                        })
+        if args.allowNonResidential ~= nil then
+            local val = (args.allowNonResidential == true)
+            MultiSafehouse.serverAllowNonResidential = val
+            MultiSafehouse.server_AllowNonResidential = val
+            configData.allowNonResidential = val
+            broadcastPayload.allowNonResidential = val
+            if SandboxVars and SandboxVars.MultiSafehouse then
+                SandboxVars.MultiSafehouse.AllowNonResidential = val
+            end
+        end
+
+        if args.allowSpawnBuildings ~= nil then
+            local val = (args.allowSpawnBuildings == true)
+            MultiSafehouse.serverAllowSpawnBuildings = val
+            MultiSafehouse.server_AllowSpawnBuildings = val
+            configData.allowSpawnBuildings = val
+            broadcastPayload.allowSpawnBuildings = val
+            if SandboxVars and SandboxVars.MultiSafehouse then
+                SandboxVars.MultiSafehouse.AllowSpawnBuildings = val
+            end
+        end
+
+        if args.daysSurvivedToClaim ~= nil then
+            local days = math.max(0, math.min(365, math.floor(tonumber(args.daysSurvivedToClaim) or 0)))
+            MultiSafehouse.serverDaysSurvivedToClaim = days
+            MultiSafehouse.server_DaysSurvivedToClaim = days
+            configData.daysSurvivedToClaim = days
+            broadcastPayload.daysSurvivedToClaim = days
+            if SandboxVars and SandboxVars.MultiSafehouse then
+                SandboxVars.MultiSafehouse.DaysSurvivedToClaim = days
+            end
+        end
+
+        if args.adminBypassRestrictions ~= nil then
+            local val = (args.adminBypassRestrictions == true)
+            MultiSafehouse.serverAdminBypassRestrictions = val
+            MultiSafehouse.server_AdminBypassRestrictions = val
+            configData.adminBypassRestrictions = val
+            broadcastPayload.adminBypassRestrictions = val
+            if SandboxVars and SandboxVars.MultiSafehouse then
+                SandboxVars.MultiSafehouse.AdminBypassRestrictions = val
+            end
+        end
+
+        -- Synchronize into native engine SandboxOptions if available
+        if getSandboxOptions then
+            pcall(function()
+                local opts = getSandboxOptions()
+                if opts and opts.set then
+                    if broadcastPayload.maxBases ~= nil then
+                        opts:set("MultiSafehouse.MaxBasesPerPlayer", broadcastPayload.maxBases)
                     end
+                    if broadcastPayload.allowNonResidential ~= nil then
+                        opts:set("MultiSafehouse.AllowNonResidential", broadcastPayload.allowNonResidential)
+                    end
+                    if broadcastPayload.allowSpawnBuildings ~= nil then
+                        opts:set("MultiSafehouse.AllowSpawnBuildings", broadcastPayload.allowSpawnBuildings)
+                    end
+                    if broadcastPayload.daysSurvivedToClaim ~= nil then
+                        opts:set("MultiSafehouse.DaysSurvivedToClaim", broadcastPayload.daysSurvivedToClaim)
+                    end
+                    if broadcastPayload.adminBypassRestrictions ~= nil then
+                        opts:set("MultiSafehouse.AdminBypassRestrictions", broadcastPayload.adminBypassRestrictions)
+                    end
+                    if opts.toLua then opts:toLua() end
+                end
+            end)
+        end
+
+        local players = getOnlinePlayers and getOnlinePlayers() or nil
+        if players then
+            for i = 0, players:size() - 1 do
+                local p = players:get(i)
+                if p then
+                    sendServerCommand(p, "MultiSafehouse", "syncAdminConfig", broadcastPayload)
                 end
             end
-
-            print("[28 Bases Later] Admin " .. username .. " updated max safehouses to: " .. sanitizedCap)
         end
+
+        print("[28 Bases Later] Admin " .. username .. " updated server configuration settings.")
     end
 end
 

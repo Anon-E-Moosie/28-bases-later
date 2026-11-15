@@ -61,6 +61,21 @@ local function doClaimBase(arg1, arg2, arg3)
 
         if not playerObj or not square then return end
 
+        local username = playerObj:getUsername()
+        local currentBases = MultiSafehouse.playerData[username]
+        local currentBasesCount = currentBases and #currentBases or 0
+
+        -- Validate with shared security engine before sending packet
+        if MultiSafehouse.Validation and MultiSafehouse.Validation.canClaimSafehouse then
+            local canClaim, reasons = MultiSafehouse.Validation.canClaimSafehouse(square, playerObj, currentBasesCount)
+            if not canClaim then
+                local firstReason = (reasons and reasons[1]) or "Cannot claim safehouse!"
+                local displayMsg = (getTextOrNull and getTextOrNull(firstReason)) or firstReason
+                playerObj:Say(displayMsg)
+                return
+            end
+        end
+
         local room = square:getRoom()
         if not room then
             playerObj:Say("Must be inside a building to claim!")
@@ -116,29 +131,79 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldobjects, te
         -- If building is already claimed, hide all claim options
         if not isClaimableLocation(square) then return end
 
-        -- Check if vanilla added a disabled "Claim Safehouse" option (due to 1-base limit)
+        local username = player:getUsername()
+        local currentBases = MultiSafehouse.playerData[username]
+        local currentBasesCount = currentBases and #currentBases or 0
+
+        -- Query shared validation engine for claim eligibility
+        local canClaim = true
+        local reasons = {}
+        if MultiSafehouse.Validation and MultiSafehouse.Validation.canClaimSafehouse then
+            canClaim, reasons = MultiSafehouse.Validation.canClaimSafehouse(square, player, currentBasesCount)
+        end
+
+        -- Formats a context option with appropriate availability state and tooltips
+        local function formatClaimOption(opt)
+            if not opt then return end
+            if not canClaim then
+                opt.notAvailable = true
+                local tooltip = ISToolTip:new()
+                tooltip:initialise()
+                tooltip:setVisible(false)
+                local desc = "<RGB:1,0.2,0.2>"
+                for _, r in ipairs(reasons) do
+                    local msg = (getTextOrNull and getTextOrNull(r)) or r
+                    desc = desc .. msg .. " <LINE> "
+                end
+                tooltip.description = desc
+                opt.toolTip = tooltip
+            else
+                opt.notAvailable = false
+                if reasons and reasons[1] == "UI_28BL_Claim_AdminBypassNotice" then
+                    local tooltip = ISToolTip:new()
+                    tooltip:initialise()
+                    tooltip:setVisible(false)
+                    local msg = (getTextOrNull and getTextOrNull("UI_28BL_Claim_AdminBypassNotice"))
+                        or "[Admin Bypass] Safehouse restrictions waived."
+                    tooltip.description = "<RGB:1,0.85,0.2>" .. msg
+                    opt.toolTip = tooltip
+                else
+                    opt.toolTip = nil
+                end
+            end
+        end
+
+        -- Check if vanilla or another mod added a "Claim Safehouse" option
         local foundVanilla = false
         if context.options then
             for _, opt in ipairs(context.options) do
-                if opt and opt.onSelect == ISWorldObjectContextMenu.onTakeSafeHouse then
+                local isSafehouseOption = false
+                if opt then
+                    if opt.onSelect == ISWorldObjectContextMenu.onTakeSafeHouse or opt.onSelect == original_onTakeSafeHouse then
+                        isSafehouseOption = true
+                    elseif opt.name and (opt.name == "Claim Safehouse" or (getTextOrNull and opt.name == getTextOrNull("ContextMenu_SafehouseClaim"))) then
+                        isSafehouseOption = true
+                    end
+                end
+                if isSafehouseOption then
                     foundVanilla = true
-                    -- Strip vanilla's red disabled lockout and tooltip
-                    opt.notAvailable = false
-                    opt.toolTip = nil
+                    formatClaimOption(opt)
                     break
                 end
             end
         end
 
-        -- If vanilla did not add the option at all, add our own
+        -- If vanilla did not add the option (Single-Player or non-standard trigger), inject our own
         if not foundVanilla then
-            context:addOption(
-                "Claim Safehouse",
+            local label = (getTextOrNull and getTextOrNull("ContextMenu_SafehouseClaim")) or "Claim Safehouse"
+            local opt = context:addOption(
+                label,
                 worldobjects,
                 ISWorldObjectContextMenu.onTakeSafeHouse,
                 square,
                 playerNum
             )
+            formatClaimOption(opt)
         end
     end)
 
