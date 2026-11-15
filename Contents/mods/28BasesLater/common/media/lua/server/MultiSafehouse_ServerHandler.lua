@@ -370,18 +370,31 @@ local function onClientCommand(module, command, player, args)
     -- -------------------------------------------
     elseif command == "renameBase" then
         local index = math.floor(tonumber(args.index) or 0)
-        if index < 1 or index > #playerSafehouses then return end
+        local base = nil
+        if index >= 1 and index <= #playerSafehouses then
+            base = playerSafehouses[index]
+        end
 
-        local cleanName = sanitizeName(args.newName, "Base #" .. index)
-        local base = playerSafehouses[index]
+        -- Coordinate fallback if index shifted
+        if not base and args.x and args.y then
+            local tx = tonumber(args.x)
+            local ty = tonumber(args.y)
+            for _, b in ipairs(playerSafehouses) do
+                if b.x == tx and b.y == ty then
+                    base = b
+                    break
+                end
+            end
+        end
 
-        -- Update native engine safehouse so Vanilla and Better Safehouse see the new title
+        if not base then return end
+
+        local cleanName = sanitizeName(args.newName, base.name or "Base")
+
+        -- Update native engine safehouse on server
         local sh = findNativeSafehouse(base.x, base.y)
         if sh then
             sh:setTitle(cleanName)
-            if sh.syncSafehouse then
-                sh:syncSafehouse()
-            end
         end
 
         base.name = cleanName

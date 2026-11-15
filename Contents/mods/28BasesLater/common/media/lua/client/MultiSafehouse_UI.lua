@@ -248,6 +248,24 @@ function MultiSafehouseWindow:onRenameConfirm(button)
             if player then
                 local selectedItem = self.baseList.items[self.renameIndex]
                 local baseObj = selectedItem and selectedItem.item or nil
+
+                -- 1. Native engine title change: updates local SafeHouse object and propagates
+                -- SafehouseSync across client and server so Vanilla UI and Better Safehouse sync
+                if baseObj and baseObj.x and baseObj.y then
+                    local sh = findClientSafehouse(baseObj.x, baseObj.y)
+                    if sh then
+                        pcall(function()
+                            sh:setTitle(newName)
+                        end)
+                        if sendSafehouseChangeTitle then
+                            pcall(function()
+                                sendSafehouseChangeTitle(sh, newName)
+                            end)
+                        end
+                    end
+                end
+
+                -- 2. 28BL authoritative server command: updates ModData and triggers syncData
                 sendClientCommand(player, "MultiSafehouse", "renameBase", {
                     index = self.renameIndex,
                     x = baseObj and baseObj.x or nil,

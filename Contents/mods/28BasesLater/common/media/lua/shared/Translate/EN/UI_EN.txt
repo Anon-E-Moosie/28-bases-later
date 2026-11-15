@@ -1,0 +1,4 @@
+UI_EN = {
+    UI_28BL_InvTrack_Title = "At Your Bases",
+    UI_28BL_InvTrack_More = "more...",
+}
