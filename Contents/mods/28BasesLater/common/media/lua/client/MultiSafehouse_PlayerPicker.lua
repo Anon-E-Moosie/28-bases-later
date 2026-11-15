@@ -123,16 +123,19 @@ end
 
 function MultiSafehousePlayerPicker:drawPlayerItem(y, item, alt)
     local isSelected = (self.selected == item.index)
+    local itemW = (self.isVScrollBarVisible and self:isVScrollBarVisible()) and (self:getWidth() - 13) or self:getWidth()
 
     if isSelected then
-        self:drawRect(0, y, self:getWidth(), item.height - 1, 0.4, 0.25, 0.6, 0.3)
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.8, 0.45, 1.0, 0.5)
+        self:drawRect(0, y, itemW, item.height - 1, 0.4, 0.25, 0.6, 0.3)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.8, 0.45, 1.0, 0.5)
     else
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.15, 0.3, 0.3, 0.3)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.15, 0.3, 0.3, 0.3)
     end
 
     local text = item.text or ""
-    self:drawText(text, 10, y + 6, 1, 1, 1, 1, UIFont.Small)
+    local fontHgt = getTextManager():getFontHeight(UIFont.Small)
+    local textY = y + math.floor((item.height - fontHgt) / 2)
+    self:drawText(text, 10, textY, 1, 1, 1, 1, UIFont.Small)
 
     return y + item.height
 end

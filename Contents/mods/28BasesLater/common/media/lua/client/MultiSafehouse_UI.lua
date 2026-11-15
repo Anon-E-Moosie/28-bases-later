@@ -76,7 +76,7 @@ function MultiSafehouseWindow:createChildren()
     self.memberList = ISScrollingListBox:new(270, th + pad + 104, 340, 160)
     self.memberList:initialise()
     self.memberList:instantiate()
-    self.memberList.itemheight = 24
+    self.memberList.itemheight = 28
     self.memberList.drawBorder = true
     self.memberList.doDrawItem = MultiSafehouseWindow.drawMemberItem
     self.memberList.onMouseDown = function(list, x, y)
@@ -305,12 +305,13 @@ end
 -- Renders each safehouse in the left list with ownership tag and respawn marker
 function MultiSafehouseWindow:drawBaseItem(y, item, alt)
     local isSelected = (self.selected == item.index)
+    local itemW = (self.isVScrollBarVisible and self:isVScrollBarVisible()) and (self:getWidth() - 13) or self:getWidth()
 
     if isSelected then
-        self:drawRect(0, y, self:getWidth(), item.height - 1, 0.45, 0.75, 0.45, 0.15)
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.8, 1.0, 0.7, 0.2)
+        self:drawRect(0, y, itemW, item.height - 1, 0.45, 0.75, 0.45, 0.15)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.8, 1.0, 0.7, 0.2)
     else
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.2, 0.4, 0.4, 0.4)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.2, 0.4, 0.4, 0.4)
     end
 
     local base = item.item
@@ -328,7 +329,9 @@ function MultiSafehouseWindow:drawBaseItem(y, item, alt)
     end
 
     local text = tag .. (item.text or "")
-    self:drawText(text, 10, y + 9, r, g, b, 1, UIFont.Small)
+    local fontHgt = getTextManager():getFontHeight(UIFont.Small)
+    local textY = y + math.floor((item.height - fontHgt) / 2)
+    self:drawText(text, 10, textY, r, g, b, 1, UIFont.Small)
 
     return y + item.height
 end
@@ -336,12 +339,13 @@ end
 -- Renders each member in the right member roster
 function MultiSafehouseWindow:drawMemberItem(y, item, alt)
     local isSelected = (self.selected == item.index)
+    local itemW = (self.isVScrollBarVisible and self:isVScrollBarVisible()) and (self:getWidth() - 13) or self:getWidth()
 
     if isSelected then
-        self:drawRect(0, y, self:getWidth(), item.height - 1, 0.35, 0.2, 0.6, 0.3)
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.7, 0.4, 1.0, 0.5)
+        self:drawRect(0, y, itemW, item.height - 1, 0.35, 0.2, 0.6, 0.3)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.7, 0.4, 1.0, 0.5)
     else
-        self:drawRectBorder(0, y, self:getWidth(), item.height - 1, 0.15, 0.3, 0.3, 0.3)
+        self:drawRectBorder(0, y, itemW, item.height - 1, 0.15, 0.3, 0.3, 0.3)
     end
 
     local text = item.text or ""
@@ -351,7 +355,9 @@ function MultiSafehouseWindow:drawMemberItem(y, item, alt)
         r, g, b = 1.0, 0.85, 0.3 -- Gold for owner
     end
 
-    self:drawText(text, 10, y + 4, r, g, b, 1, UIFont.Small)
+    local fontHgt = getTextManager():getFontHeight(UIFont.Small)
+    local textY = y + math.floor((item.height - fontHgt) / 2)
+    self:drawText(text, 10, textY, r, g, b, 1, UIFont.Small)
 
     return y + item.height
 end
