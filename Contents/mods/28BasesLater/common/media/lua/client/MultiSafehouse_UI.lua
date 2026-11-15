@@ -19,36 +19,22 @@ MultiSafehouseWindow = ISCollapsableWindow:derive("MultiSafehouseWindow")
 function MultiSafehouseWindow:initialise()
     ISCollapsableWindow.initialise(self)
     self:setTitle(getText("UI_MultiSafehouse_WindowTitle", "28 Bases Later"))
+    self.minimumWidth = 580
+    self.minimumHeight = 360
 end
 
 function MultiSafehouseWindow:createChildren()
     ISCollapsableWindow.createChildren(self)
 
     local th = self:titleBarHeight()
-    local rh = self:resizeWidgetHeight() or 16
     local pad = 10
     local btnH = 26
     local btnW = 85
 
-    local bottomOffset = rh + 10
-    local bottomRowY = self.height - bottomOffset - btnH
-
-    -- Dimension allocations for Two-Column layout
-    local col1W = 250
-    local col2X = pad + col1W + pad
-    local col2W = self.width - col2X - pad
-
     -- =========================================================
-    -- LEFT COLUMN: Base List
+    -- 1. LEFT COLUMN: Base List
     -- =========================================================
-    local listBottomMargin = bottomOffset + btnH + 10
-
-    self.baseList = ISScrollingListBox:new(
-        pad,
-        th + pad,
-        col1W,
-        self.height - th - pad - listBottomMargin
-    )
+    self.baseList = ISScrollingListBox:new(pad, th + pad, 250, 260)
     self.baseList:initialise()
     self.baseList:instantiate()
     self.baseList.itemheight = 36
@@ -62,55 +48,32 @@ function MultiSafehouseWindow:createChildren()
         end
         return row
     end
-    self.baseList:setAnchorLeft(true)
-    self.baseList:setAnchorRight(false)
-    self.baseList:setAnchorTop(true)
-    self.baseList:setAnchorBottom(true)
     self:addChild(self.baseList)
 
     -- =========================================================
-    -- RIGHT COLUMN: Base Details & Member Management
+    -- 2. RIGHT COLUMN: Base Details & Member Roster
     -- =========================================================
-    local curY = th + pad
-
-    -- 1. Base Name Header
-    self.baseNameLabel = ISLabel:new(col2X, curY, 22, "Select a safehouse", 1, 1, 1, 1, UIFont.Medium, true)
+    self.baseNameLabel = ISLabel:new(270, th + pad, 22, "Select a safehouse", 1, 1, 1, 1, UIFont.Medium, true)
     self.baseNameLabel:initialise()
     self:addChild(self.baseNameLabel)
-    curY = curY + 24
 
-    -- 2. Owner Label
-    self.baseOwnerLabel = ISLabel:new(col2X, curY, 18, "Owner: -", 0.85, 0.85, 0.85, 1, UIFont.Small, true)
+    self.baseOwnerLabel = ISLabel:new(270, th + pad + 24, 18, "Owner: -", 0.85, 0.85, 0.85, 1, UIFont.Small, true)
     self.baseOwnerLabel:initialise()
     self:addChild(self.baseOwnerLabel)
-    curY = curY + 18
 
-    -- 3. Dimensions & Coords Label
-    self.baseCoordsLabel = ISLabel:new(col2X, curY, 18, "Dimensions: -", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
+    self.baseCoordsLabel = ISLabel:new(270, th + pad + 42, 18, "Dimensions: -", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
     self.baseCoordsLabel:initialise()
     self:addChild(self.baseCoordsLabel)
-    curY = curY + 18
 
-    -- 4. Personal Respawn Status
-    self.baseRespawnLabel = ISLabel:new(col2X, curY, 18, "Personal Respawn: Inactive", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
+    self.baseRespawnLabel = ISLabel:new(270, th + pad + 60, 18, "Personal Respawn: Inactive", 0.7, 0.7, 0.7, 1, UIFont.Small, true)
     self.baseRespawnLabel:initialise()
     self:addChild(self.baseRespawnLabel)
-    curY = curY + 22
 
-    -- 5. Members Section Header
-    self.membersHeaderLabel = ISLabel:new(col2X, curY, 18, getText("UI_MultiSafehouse_MembersHeader", "Whitelisted Members:"), 1, 0.85, 0.4, 1, UIFont.Small, true)
+    self.membersHeaderLabel = ISLabel:new(270, th + pad + 82, 18, getText("UI_MultiSafehouse_MembersHeader", "Whitelisted Members:"), 1, 0.85, 0.4, 1, UIFont.Small, true)
     self.membersHeaderLabel:initialise()
     self:addChild(self.membersHeaderLabel)
-    curY = curY + 20
 
-    -- 6. Member Scrolling List
-    local memberListH = 140
-    self.memberList = ISScrollingListBox:new(
-        col2X,
-        curY,
-        col2W,
-        memberListH
-    )
+    self.memberList = ISScrollingListBox:new(270, th + pad + 104, 340, 160)
     self.memberList:initialise()
     self.memberList:instantiate()
     self.memberList.itemheight = 24
@@ -125,16 +88,13 @@ function MultiSafehouseWindow:createChildren()
         return row
     end
     self:addChild(self.memberList)
-    curY = curY + memberListH + 8
 
-    -- 7. Member Action Button Row
-    local subBtnW = math.floor((col2W - 16) / 3)
-
+    -- Member Action Buttons
     self.addMemberBtn = ISButton:new(
-        col2X,
-        curY,
-        subBtnW,
-        24,
+        270,
+        280,
+        120,
+        btnH,
         getText("UI_MultiSafehouse_AddMember", "+ Add Member"),
         self,
         MultiSafehouseWindow.onAddMember
@@ -145,10 +105,10 @@ function MultiSafehouseWindow:createChildren()
     self:addChild(self.addMemberBtn)
 
     self.kickMemberBtn = ISButton:new(
-        col2X + subBtnW + 8,
-        curY,
-        subBtnW,
-        24,
+        400,
+        280,
+        120,
+        btnH,
         getText("UI_MultiSafehouse_KickMember", "- Kick Member"),
         self,
         MultiSafehouseWindow.onKickMember
@@ -159,10 +119,10 @@ function MultiSafehouseWindow:createChildren()
     self:addChild(self.kickMemberBtn)
 
     self.leaveBaseBtn = ISButton:new(
-        col2X + (subBtnW + 8) * 2,
-        curY,
-        subBtnW,
-        24,
+        530,
+        280,
+        110,
+        btnH,
         getText("UI_MultiSafehouse_LeaveBase", "Leave Base"),
         self,
         MultiSafehouseWindow.onLeaveBase
@@ -173,12 +133,11 @@ function MultiSafehouseWindow:createChildren()
     self:addChild(self.leaveBaseBtn)
 
     -- =========================================================
-    -- BOTTOM ROW: Global Actions
+    -- 3. BOTTOM ROW: Global Actions
     -- =========================================================
-    -- "Set Respawn" Button
     self.respawnBtn = ISButton:new(
         pad,
-        bottomRowY,
+        self.height - pad - btnH,
         btnW + 15,
         btnH,
         getText("UI_MultiSafehouse_SetRespawn", "Set Respawn"),
@@ -188,15 +147,11 @@ function MultiSafehouseWindow:createChildren()
     self.respawnBtn:initialise()
     self.respawnBtn:instantiate()
     self.respawnBtn.borderColor = {r=0.3, g=0.5, b=0.3, a=1}
-    self.respawnBtn:setAnchorLeft(true)
-    self.respawnBtn:setAnchorBottom(true)
-    self.respawnBtn:setAnchorTop(false)
     self:addChild(self.respawnBtn)
 
-    -- "Rename" Button
     self.renameBtn = ISButton:new(
         self.respawnBtn:getRight() + 8,
-        bottomRowY,
+        self.height - pad - btnH,
         btnW - 5,
         btnH,
         getText("UI_MultiSafehouse_Rename", "Rename"),
@@ -206,15 +161,11 @@ function MultiSafehouseWindow:createChildren()
     self.renameBtn:initialise()
     self.renameBtn:instantiate()
     self.renameBtn.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
-    self.renameBtn:setAnchorLeft(true)
-    self.renameBtn:setAnchorBottom(true)
-    self.renameBtn:setAnchorTop(false)
     self:addChild(self.renameBtn)
 
-    -- "Release" (Delete) Button
     self.releaseBtn = ISButton:new(
         self.renameBtn:getRight() + 8,
-        bottomRowY,
+        self.height - pad - btnH,
         btnW - 5,
         btnH,
         getText("UI_MultiSafehouse_Release", "Release"),
@@ -224,15 +175,11 @@ function MultiSafehouseWindow:createChildren()
     self.releaseBtn:initialise()
     self.releaseBtn:instantiate()
     self.releaseBtn.borderColor = {r=0.6, g=0.2, b=0.2, a=1}
-    self.releaseBtn:setAnchorLeft(true)
-    self.releaseBtn:setAnchorBottom(true)
-    self.releaseBtn:setAnchorTop(false)
     self:addChild(self.releaseBtn)
 
-    -- "Refresh" Button
     self.refreshBtn = ISButton:new(
         self.width - pad - btnW,
-        bottomRowY,
+        self.height - pad - btnH,
         btnW,
         btnH,
         getText("UI_MultiSafehouse_Refresh", "Refresh"),
@@ -242,11 +189,117 @@ function MultiSafehouseWindow:createChildren()
     self.refreshBtn:initialise()
     self.refreshBtn:instantiate()
     self.refreshBtn.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
-    self.refreshBtn:setAnchorLeft(false)
-    self.refreshBtn:setAnchorRight(true)
-    self.refreshBtn:setAnchorBottom(true)
-    self.refreshBtn:setAnchorTop(false)
     self:addChild(self.refreshBtn)
+
+    -- Trigger initial proportional layout
+    self:onResize()
+end
+
+-- Recalculates proportional layout dynamically on window resize
+function MultiSafehouseWindow:onResize()
+    ISCollapsableWindow.onResize(self)
+
+    local th = self:titleBarHeight()
+    local rh = self:resizeWidgetHeight() or 16
+    local pad = 10
+    local btnH = 26
+    local btnW = 85
+
+    local bottomOffset = rh + 10
+    local bottomRowY = self.height - bottomOffset - btnH
+
+    -- Proportional Two-Column Allocation
+    local col1W = math.max(240, math.floor(self.width * 0.38))
+    local col2X = pad + col1W + pad
+    local col2W = math.max(260, self.width - col2X - pad)
+
+    local listBottomMargin = bottomOffset + btnH + 10
+
+    -- 1. Resize baseList
+    if self.baseList then
+        self.baseList:setX(pad)
+        self.baseList:setY(th + pad)
+        self.baseList:setWidth(col1W)
+        self.baseList:setHeight(math.max(100, self.height - th - pad - listBottomMargin))
+    end
+
+    -- 2. Reposition right column labels
+    local curY = th + pad
+    if self.baseNameLabel then
+        self.baseNameLabel:setX(col2X)
+        self.baseNameLabel:setY(curY)
+    end
+    curY = curY + 24
+    if self.baseOwnerLabel then
+        self.baseOwnerLabel:setX(col2X)
+        self.baseOwnerLabel:setY(curY)
+    end
+    curY = curY + 18
+    if self.baseCoordsLabel then
+        self.baseCoordsLabel:setX(col2X)
+        self.baseCoordsLabel:setY(curY)
+    end
+    curY = curY + 18
+    if self.baseRespawnLabel then
+        self.baseRespawnLabel:setX(col2X)
+        self.baseRespawnLabel:setY(curY)
+    end
+    curY = curY + 22
+    if self.membersHeaderLabel then
+        self.membersHeaderLabel:setX(col2X)
+        self.membersHeaderLabel:setY(curY)
+    end
+    curY = curY + 20
+
+    -- 3. Calculate dynamic height for memberList and position member buttons
+    local memberBtnsH = 26
+    local memberBtnsY = bottomRowY - 12 - memberBtnsH
+    local memberListH = math.max(80, memberBtnsY - 8 - curY)
+
+    if self.memberList then
+        self.memberList:setX(col2X)
+        self.memberList:setY(curY)
+        self.memberList:setWidth(col2W)
+        self.memberList:setHeight(memberListH)
+    end
+
+    local memberBtnW = math.max(110, math.min(135, math.floor((col2W - 20) / 3)))
+    if self.addMemberBtn then
+        self.addMemberBtn:setX(col2X)
+        self.addMemberBtn:setY(memberBtnsY)
+        self.addMemberBtn:setWidth(memberBtnW)
+        self.addMemberBtn:setHeight(memberBtnsH)
+    end
+    if self.kickMemberBtn then
+        self.kickMemberBtn:setX(col2X + memberBtnW + 10)
+        self.kickMemberBtn:setY(memberBtnsY)
+        self.kickMemberBtn:setWidth(memberBtnW)
+        self.kickMemberBtn:setHeight(memberBtnsH)
+    end
+    if self.leaveBaseBtn then
+        self.leaveBaseBtn:setX(col2X + col2W - memberBtnW)
+        self.leaveBaseBtn:setY(memberBtnsY)
+        self.leaveBaseBtn:setWidth(memberBtnW)
+        self.leaveBaseBtn:setHeight(memberBtnsH)
+    end
+
+    -- 4. Position bottom row global buttons
+    if self.respawnBtn then
+        self.respawnBtn:setX(pad)
+        self.respawnBtn:setY(bottomRowY)
+    end
+    if self.renameBtn then
+        self.renameBtn:setX(self.respawnBtn:getRight() + 8)
+        self.renameBtn:setY(bottomRowY)
+    end
+    if self.releaseBtn then
+        self.releaseBtn:setX(self.renameBtn:getRight() + 8)
+        self.releaseBtn:setY(bottomRowY)
+    end
+    if self.refreshBtn then
+        self.refreshBtn:setX(self.width - pad - btnW)
+        self.refreshBtn:setY(bottomRowY)
+    end
 end
 
 -- Renders each safehouse in the left list with ownership tag and respawn marker
@@ -609,7 +662,6 @@ function MultiSafehouseWindow:onRelease()
     local modal = ISModalDialog:new(
         (screenW - 350) / 2,
         (screenH - 120) / 2,
-        350, 120,
         "Release safehouse '" .. baseName .. "'?",
         true,
         self,
@@ -758,7 +810,7 @@ function MultiSafehouse.toggleUI()
     if not MultiSafehouse.uiWindow then
         local screenW = getCore():getScreenWidth()
         local screenH = getCore():getScreenHeight()
-        local winW = 640
+        local winW = 660
         local winH = 420
         local winX = (screenW - winW) / 2
         local winY = (screenH - winH) / 2
@@ -912,4 +964,4 @@ end
 
 Events.OnKeyPressed.Add(onKeyPressed)
 
-print("[28 Bases Later] Management UI initialized with membership panel.")
+print("[28 Bases Later] Management UI initialized with responsive layout.")

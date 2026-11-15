@@ -14,6 +14,7 @@ MultiSafehousePlayerPicker = ISCollapsableWindow:derive("MultiSafehousePlayerPic
 function MultiSafehousePlayerPicker:initialise()
     ISCollapsableWindow.initialise(self)
     self:setTitle(getText("UI_MultiSafehouse_InviteTitle", "Invite Player to Safehouse"))
+    self.resizable = false
 end
 
 function MultiSafehousePlayerPicker:createChildren()
@@ -86,7 +87,38 @@ function MultiSafehousePlayerPicker:createChildren()
     self.cancelBtn.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     self:addChild(self.cancelBtn)
 
+    self:onResize()
     self:populatePlayerList()
+end
+
+function MultiSafehousePlayerPicker:onResize()
+    ISCollapsableWindow.onResize(self)
+
+    local th = self:titleBarHeight()
+    local pad = 10
+    local btnH = 26
+    local btnW = 90
+    local listTop = th + pad + 24
+    local listBottomMargin = pad + btnH + pad
+
+    if self.headerLabel then
+        self.headerLabel:setX(pad)
+        self.headerLabel:setY(th + pad)
+    end
+    if self.playerList then
+        self.playerList:setX(pad)
+        self.playerList:setY(listTop)
+        self.playerList:setWidth(self.width - pad * 2)
+        self.playerList:setHeight(math.max(80, self.height - listTop - listBottomMargin))
+    end
+    if self.inviteBtn then
+        self.inviteBtn:setX(pad)
+        self.inviteBtn:setY(self.height - pad - btnH)
+    end
+    if self.cancelBtn then
+        self.cancelBtn:setX(self.width - pad - btnW)
+        self.cancelBtn:setY(self.height - pad - btnH)
+    end
 end
 
 function MultiSafehousePlayerPicker:drawPlayerItem(y, item, alt)
@@ -186,8 +218,8 @@ MultiSafehouse = MultiSafehouse or {}
 function MultiSafehouse.openPlayerPicker(baseObj)
     local screenW = getCore():getScreenWidth()
     local screenH = getCore():getScreenHeight()
-    local w = 340
-    local h = 360
+    local w = 320
+    local h = 280
     local x = (screenW - w) / 2
     local y = (screenH - h) / 2
 
