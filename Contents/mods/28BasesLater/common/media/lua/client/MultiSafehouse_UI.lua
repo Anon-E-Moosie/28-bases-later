@@ -227,26 +227,31 @@ function MultiSafehouseWindow:onResize()
     local curY = th + pad
     if self.baseNameLabel then
         self.baseNameLabel:setX(col2X)
+        self.baseNameLabel.originalX = col2X
         self.baseNameLabel:setY(curY)
     end
     curY = curY + 24
     if self.baseOwnerLabel then
         self.baseOwnerLabel:setX(col2X)
+        self.baseOwnerLabel.originalX = col2X
         self.baseOwnerLabel:setY(curY)
     end
     curY = curY + 18
     if self.baseCoordsLabel then
         self.baseCoordsLabel:setX(col2X)
+        self.baseCoordsLabel.originalX = col2X
         self.baseCoordsLabel:setY(curY)
     end
     curY = curY + 18
     if self.baseRespawnLabel then
         self.baseRespawnLabel:setX(col2X)
+        self.baseRespawnLabel.originalX = col2X
         self.baseRespawnLabel:setY(curY)
     end
     curY = curY + 22
     if self.membersHeaderLabel then
         self.membersHeaderLabel:setX(col2X)
+        self.membersHeaderLabel.originalX = col2X
         self.membersHeaderLabel:setY(curY)
     end
     curY = curY + 20
@@ -362,6 +367,15 @@ function MultiSafehouseWindow:drawMemberItem(y, item, alt)
     return y + item.height
 end
 
+local function setLabelText(lbl, text)
+    if not lbl then return end
+    if lbl.setNameWithoutMoving then
+        lbl:setNameWithoutMoving(text)
+    else
+        lbl:setName(text)
+    end
+end
+
 local function findClientSafehouse(x, y)
     if not SafeHouse or not SafeHouse.getSafehouseList then return nil end
     local list = SafeHouse.getSafehouseList()
@@ -455,32 +469,32 @@ function MultiSafehouseWindow:onBaseSelected()
     local myUsername = player and player:getUsername() or ""
 
     if not base then
-        self.baseNameLabel:setName("No base selected")
-        self.baseOwnerLabel:setName("Owner: -")
-        self.baseCoordsLabel:setName("Dimensions: -")
-        self.baseRespawnLabel:setName("Personal Respawn: -")
+        setLabelText(self.baseNameLabel, "No base selected")
+        setLabelText(self.baseOwnerLabel, "Owner: -")
+        setLabelText(self.baseCoordsLabel, "Dimensions: -")
+        setLabelText(self.baseRespawnLabel, "Personal Respawn: -")
         self.memberList:clear()
         self:updatePermissionControls()
         return
     end
 
     local baseTitle = base.name or "Safehouse"
-    self.baseNameLabel:setName(baseTitle)
+    setLabelText(self.baseNameLabel, baseTitle)
 
     local ownerStr = base.owner or myUsername
     if ownerStr == myUsername then
-        self.baseOwnerLabel:setName("Owner: " .. ownerStr .. " (You)")
+        setLabelText(self.baseOwnerLabel, "Owner: " .. ownerStr .. " (You)")
     else
-        self.baseOwnerLabel:setName("Owner: " .. ownerStr)
+        setLabelText(self.baseOwnerLabel, "Owner: " .. ownerStr)
     end
 
     local dimStr = string.format("Dimensions: %dx%d (X: %d, Y: %d)", base.w or 0, base.h or 0, base.x or 0, base.y or 0)
-    self.baseCoordsLabel:setName(dimStr)
+    setLabelText(self.baseCoordsLabel, dimStr)
 
     if base.isRespawn then
-        self.baseRespawnLabel:setName("Personal Respawn: ACTIVE")
+        setLabelText(self.baseRespawnLabel, "Personal Respawn: ACTIVE")
     else
-        self.baseRespawnLabel:setName("Personal Respawn: Inactive")
+        setLabelText(self.baseRespawnLabel, "Personal Respawn: Inactive")
     end
 
     -- Populate member roster
@@ -627,7 +641,8 @@ function MultiSafehouseWindow:onRenameConfirm(button)
         if newName and newName ~= "" then
             local player = getPlayer()
             if player then
-                local selectedItem = self.baseList.items[self.renameIndex]
+                local selectedIndex = self.renameIndex or self.baseList.selected
+                local selectedItem = selectedIndex and self.baseList.items[selectedIndex]
                 local baseObj = selectedItem and selectedItem.item or nil
 
                 if baseObj and baseObj.x and baseObj.y then
@@ -640,8 +655,21 @@ function MultiSafehouseWindow:onRenameConfirm(button)
                     end
                 end
 
+                -- Optimistic UI update: reflect new title immediately
+                if baseObj then
+                    baseObj.name = newName
+                    local label = newName
+                    if baseObj.isRespawn then
+                        label = label .. "   [RESPAWN]"
+                    end
+                    if selectedItem then
+                        selectedItem.text = label
+                    end
+                    self:onBaseSelected()
+                end
+
                 sendClientCommand(player, "MultiSafehouse", "renameBase", {
-                    index = self.renameIndex,
+                    index = selectedIndex,
                     x = baseObj and baseObj.x or nil,
                     y = baseObj and baseObj.y or nil,
                     newName = newName
@@ -668,6 +696,8 @@ function MultiSafehouseWindow:onRelease()
     local modal = ISModalDialog:new(
         (screenW - 350) / 2,
         (screenH - 120) / 2,
+        350,
+        120,
         "Release safehouse '" .. baseName .. "'?",
         true,
         self,
@@ -742,6 +772,8 @@ function MultiSafehouseWindow:onKickMember()
     local modal = ISModalDialog:new(
         (screenW - 350) / 2,
         (screenH - 120) / 2,
+        350,
+        120,
         "Remove '" .. targetUsername .. "' from safehouse '" .. (baseObj.name or "Base") .. "'?",
         true,
         self,
@@ -780,6 +812,8 @@ function MultiSafehouseWindow:onLeaveBase()
     local modal = ISModalDialog:new(
         (screenW - 350) / 2,
         (screenH - 120) / 2,
+        350,
+        120,
         "Leave safehouse '" .. (baseObj.name or "Base") .. "'?\nYou will lose access to this safehouse.",
         true,
         self,
