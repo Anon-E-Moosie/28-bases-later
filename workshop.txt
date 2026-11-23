@@ -70,12 +70,13 @@ That is not to say this mod does not have other bugs, I intend to openly support
 
 [hr][/hr]
 [h2]Changelog[/h2]
-
-[b]v1.0.3[/b]
+[b]v1.1.0[/b]
 [list]
-[*] Added basic loot tracking for items within your safehouses, hover over any item while out looting to instantly see if you already have it stored at home, how many, and at which safehouse.
-[*] Fixed tooltip translation tokens with native Build 42 UI.json localization
-
+[*] Added safehouse co-ownership and member sharing: invite online players (+ Add Member), evict members (- Kick Member), or leave shared bases (Leave Base).
+[*] Redesigned the F7 dashboard into a resizable two-column layout with an interactive member roster and instant UI updates.
+[*] Independent personal respawns: members and owners can each designate their own respawn safehouse.
+[*] Safehouse loot tracking now includes items stored across all your co-owned and shared bases.
+[*] Added admin claim restrictions in Sandbox Options: max building dimensions, non-residential claim toggles, spawn point protection, and days-survived requirements.
 [/list]
 
 Workshop ID: 3835106467
