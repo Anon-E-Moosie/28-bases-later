@@ -48,28 +48,16 @@ Why settle for one safehouse when Knox County is full of empty houses?
 [/list]
 
 [hr][/hr]
-[h2]Known Bugs & Issues[/h2]
-
+[h2]Changelog[/h2]
+[b]v1.2.0[/b]
 [list]
-[*] Claiming currently does not respect vanilla safehouse restrictions, this means players can claim spawn locations as well as commercial buildings, I will add options to toggle these restrictions on/off in a future patch
+[*] Persistent Loot Tracking across Reconnects: Safehouse inventory item counts are now saved to local disk cache with debounced writing. Tooltips immediately remember all stored loot upon reconnecting without needing to re-visit or enter distant bases.
+[*] Full RV Interior & Vehicle Compatibility: Full support for RV Interior and vehicle pocket dimensions. Teleportation into and out of RV interiors is automatically detected, scanning loot before chunks unload.
+[*] Death Safehouse Protection & Self-Healing: Claimed safehouses are no longer lost when a player dies in multiplayer. Authoritative server storage self-heals missing safehouses back into the game engine across character lifecycles and server restarts.
+[*] Safe RV Respawn & Chunk Streaming: Respawning at an RV interior safehouse now safely streams map chunks before positioning the character, preventing falling into the void and preserving vehicle exit interactions.
+[*] Client Safehouse Engine Sync: Reconnecting clients immediately synchronize safehouse boundaries into local memory, preventing false "Claim Safehouse" context menu options on already-owned bases.
 [/list]
 
-[hr][/hr]
-[h2]Disclaimer[/h2]
-
-Made with assistance of Gemini and Claude via Antigravity.
-I'm on a journey of self-improvement as I attempt to learn JavaScript for my career, I've decided to expand this into Lua by having a go at Project Zomboid modding.
-
-Once I've ironed out my workflow I will release the code on GitHub so it can be reviewed publically by those that wish to see it without downloading the mod.
-
-My process involves multiple code reviews before changes are made public, several by other AI agents and a final one by a human that is not myself. I am attempting to keep comments and notes on code relevant from a learning perspective as this mod is a result of learning in practice.
-
-While some of the code is AI generated, on a separate branch from Main and as part of my learning process one of my agents will intentionally make mistakes for me to correct, introduce bugs for me to fix or leave lines blank for me to fill in the gaps, it then grades my progress. Any of these intentional mistakes, bugs and gaps introduced to guide my learning are kept out of the Main branch and do not reach production.
-
-That is not to say this mod does not have other bugs, I intend to openly support this mod and as my skills and knowledge progress, less of the code itself will be AI generated and it will remain as a learning tool instead.
-
-[hr][/hr]
-[h2]Changelog[/h2]
 [b]v1.1.0[/b]
 [list]
 [*] Added safehouse co-ownership and member sharing: invite online players (+ Add Member), evict members (- Kick Member), or leave shared bases (Leave Base).

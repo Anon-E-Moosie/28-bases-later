@@ -1,5 +1,6 @@
 name=28 Bases Later
 id=28baseslater
+version=1.2.0
 description=Claim and manage multiple safehouses simultaneously in multiplayer. Includes a management UI.
 poster=preview.png
 auther=Anon. E. Moose

@@ -249,6 +249,44 @@ local function onServerCommand(module, command, args)
             end
         end
 
+    -- When server synchronizes all safehouses, hydrate missing ones in client Java engine
+    elseif command == "syncData" and args.safehouses then
+        if SafeHouse and SafeHouse.getSafehouseList then
+            local fn = SafeHouse.addSafeHouse or SafeHouse.addSafehouse
+            if fn then
+                local list = SafeHouse.getSafehouseList()
+                local existing = {}
+                for i = 0, list:size() - 1 do
+                    local sh = list:get(i)
+                    if sh then
+                        existing[sh:getX() .. "," .. sh:getY()] = sh
+                    end
+                end
+
+                for _, base in ipairs(args.safehouses) do
+                    if base.x and base.y and base.w and base.h then
+                        local key = base.x .. "," .. base.y
+                        local sh = existing[key]
+                        if not sh then
+                            pcall(function()
+                                local newSh = fn(base.x, base.y, base.w, base.h, base.owner or "Player")
+                                if newSh and base.name then
+                                    newSh:setTitle(base.name)
+                                end
+                                if newSh and base.isRespawn and newSh.setRespawnInSafehouse then
+                                    local u = base.owner or (getPlayer() and getPlayer():getUsername())
+                                    if u then newSh:setRespawnInSafehouse(true, u) end
+                                end
+                                existing[key] = newSh
+                            end)
+                        elseif base.name and sh.setTitle and sh:getTitle() ~= base.name then
+                            pcall(function() sh:setTitle(base.name) end)
+                        end
+                    end
+                end
+            end
+        end
+
     -- When server removes a safehouse, remove it from local client engine
     elseif command == "safehouseRemoved" then
         if SafeHouse and SafeHouse.getSafehouseList and args.x and args.y then

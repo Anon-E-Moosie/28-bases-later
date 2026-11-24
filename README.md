@@ -68,6 +68,25 @@ That is not to say this mod does not have other bugs, I intend to openly support
 
 ## Changelog
 
+**v1.2.0**
+- **Safehouse Inventory Disk Persistence & Reconnect Retention:**
+  - Persists safehouse inventory loot counts directly to local structured disk storage (`28BL_InvCache_<Server/World>_<User>.ini`) with debounced write operations.
+  - Hovering over items immediately reflects stored loot across all owned and member bases upon reconnecting without needing to re-visit or enter distant outposts.
+  - Reconciles persistent disk cache against active server safehouses, cleanly removing released bases.
+- **RV Interior & Vehicle Pocket Dimension Compatibility:**
+  - Full compatibility with the RV Interior mod (`PROJECTRVInterior42`, Workshop ID: 3543229299).
+  - Universal **Coordinate Jump Detector** in `Events.OnPlayerMove` detects dimensional entry/exit transitions (>200 tiles in 1 tick), flushing cache before chunks unload and triggering settled scans upon entry.
+  - Native integration with `RVHooks` where supported.
+- **Death Safehouse Preservation & Self-Healing Server Engine:**
+  - Server-authoritative `ModData["28BasesLater"][username]` permanently safeguards safehouses against character death and respawn wipes.
+  - Automatically **self-heals** missing Java `SafeHouse` objects back into the server engine with their original title, respawn flag, and member roster.
+- **Safe RV Respawn & Chunk Streaming:**
+  - Player modData is hydrated with RV room parameters (`projectRV_room`, `projectRV_vehicleId`) on respawn.
+  - Delays physical positioning by up to 60 ticks until destination floor tiles are confirmed loaded, preventing physics falls into the void and ensuring vehicle exit interactions work.
+- **Client-Side Java Safehouse Hydration:**
+  - Synchronizes server safehouses into client Java memory (`SafeHouse.addSafeHouse`) on connect/respawn, preventing false "Claim Safehouse" options in the context menu.
+  - Non-destructive client reconciler prevents F7 UI wipes when distant chunks are unloaded.
+
 **v1.1.0**
 - **Safehouse Co-Ownership & Member Whitelisting:**
   - Added safehouse member sharing! Safehouse owners can now invite friends and faction members to their bases.

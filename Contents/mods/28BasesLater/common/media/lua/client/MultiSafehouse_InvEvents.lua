@@ -17,16 +17,23 @@
 -- -----------------------------------------------
 -- Hook 1: Respond to 28BL server packets.
 -- "syncData" is sent on connect, rename, release, and admin config change.
--- We use it as the trigger for a fresh scan of all safehouse bases.
+-- We hydrate from disk, reconcile against active bases, and scan loaded chunks.
 -- -----------------------------------------------
 local function onServerCommand_InvSync(module, command, args)
     if module ~= "MultiSafehouse" or not args then return end
 
-    if command == "syncData" then
-        -- The player's safehouse list (names, bounds) just updated from the server.
-        -- Wipe the entire cache so old base names or stale counts don't linger.
-        MSI_Cache.clear()
-        -- Attempt an immediate scan (will only pick up loaded squares).
+    if command == "syncData" and args.safehouses then
+        -- 1. Load persisted item counts from local disk
+        if MSI_Cache.load then
+            MSI_Cache.load()
+        end
+
+        -- 2. Reconcile with active server safehouses (retains counts for distant/RV bases)
+        if MSI_Cache.reconcile then
+            MSI_Cache.reconcile(args.safehouses)
+        end
+
+        -- 3. Scan whatever squares are currently loaded around the player
         MSI_Scanner.updateAll()
     end
 end
@@ -61,18 +68,20 @@ Events.EveryTenMinutes.Add(function()
 end)
 
 -- -----------------------------------------------
--- Hook 5: Wipe cache on disconnect.
--- Prevents stale data from a previous session appearing briefly after reconnect.
+-- Hook 5: Flush disk writes and clear on disconnect.
+-- Persists latest counts so reconnecting can restore them.
 -- -----------------------------------------------
 Events.OnDisconnect.Add(function()
+    if MSI_Cache.save then
+        pcall(MSI_Cache.save)
+    end
     MSI_Cache.clear()
 end)
 
 -- -----------------------------------------------
 -- Hook 6: Initial scan on game start (single-player).
 -- In single-player there is no server syncData packet,
--- so we trigger the first scan 60 ticks after game start
--- to give playerData time to populate via OnSafehousesChanged.
+-- so we trigger disk load and first scan after playerData populates.
 -- -----------------------------------------------
 local _spScanDone = false
 Events.OnTick.Add(function()
@@ -85,7 +94,91 @@ Events.OnTick.Add(function()
     -- Wait for hydration flag (set when OnSafehousesChanged fires in SP)
     if not MultiSafehouse or not MultiSafehouse.isHydrated then return end
     _spScanDone = true
+
+    if MSI_Cache.load then
+        MSI_Cache.load()
+    end
+    local player = getPlayer()
+    local uName = player and player:getUsername()
+    if uName and MultiSafehouse.playerData and MultiSafehouse.playerData[uName] and MSI_Cache.reconcile then
+        MSI_Cache.reconcile(MultiSafehouse.playerData[uName])
+    end
     MSI_Scanner.updateAll()
 end)
+
+-- -----------------------------------------------
+-- Hook 7: Debounced disk save ticker & settling scan scheduler
+-- -----------------------------------------------
+local _pendingScanTicks = -1
+local _tickCounter = 0
+
+Events.OnTick.Add(function()
+    _tickCounter = _tickCounter + 1
+
+    -- Periodic check for debounced cache save (every 60 ticks = ~1 second)
+    if _tickCounter % 60 == 0 and MSI_Cache.checkDebouncedSave then
+        MSI_Cache.checkDebouncedSave()
+    end
+
+    -- Delayed scan countdown for settling chunks after entering an RV or teleporting
+    if _pendingScanTicks > 0 then
+        _pendingScanTicks = _pendingScanTicks - 1
+    elseif _pendingScanTicks == 0 then
+        _pendingScanTicks = -1
+        MSI_Scanner.updateAll()
+    end
+end)
+
+-- -----------------------------------------------
+-- Hook 8: Coordinate Jump Detector (Universal RV Enter/Exit & Teleport Handler)
+-- Detects when a character teleports across dimensions (>200 tiles in 1 tick)
+-- -----------------------------------------------
+local _lastPlayerX = nil
+local _lastPlayerY = nil
+
+local function onPlayerMoveCheck(player)
+    if not player or not player.isLocalPlayer or not player:isLocalPlayer() then return end
+
+    local curX = player:getX()
+    local curY = player:getY()
+
+    if _lastPlayerX ~= nil and _lastPlayerY ~= nil then
+        local dx = math.abs(curX - _lastPlayerX)
+        local dy = math.abs(curY - _lastPlayerY)
+
+        -- If player moved more than 200 tiles in a single movement update,
+        -- they entered an RV interior, exited to the world, or were teleported.
+        if dx > 200 or dy > 200 then
+            -- Immediately flush previous location's cache before old chunks unload
+            if MSI_Cache.save then
+                pcall(MSI_Cache.save)
+            end
+            -- Schedule a scan in 30 ticks (~0.5s) to allow destination chunks to load
+            _pendingScanTicks = 30
+        end
+    end
+
+    _lastPlayerX = curX
+    _lastPlayerY = curY
+end
+
+if Events.OnPlayerMove then
+    Events.OnPlayerMove.Add(onPlayerMoveCheck)
+end
+
+-- -----------------------------------------------
+-- Hook 9: Direct RVHooks integration (if Project RV Interior mod is active)
+-- -----------------------------------------------
+if RVHooks and type(RVHooks.register) == "function" then
+    pcall(function()
+        RVHooks.register("postEnter", function()
+            _pendingScanTicks = 30
+        end)
+        RVHooks.register("postExit", function()
+            if MSI_Cache.save then pcall(MSI_Cache.save) end
+            _pendingScanTicks = 30
+        end)
+    end)
+end
 
 print("[28 Bases Later] InvEvents wiring loaded.")

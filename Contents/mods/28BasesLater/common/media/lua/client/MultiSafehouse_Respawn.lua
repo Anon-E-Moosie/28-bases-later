@@ -52,7 +52,68 @@ local function onServerCommand(module, command, args)
         local targetY = args.y + 0.5
         local targetZ = args.z or 0
 
-        -- Native PZ engine teleport (handles chunk streaming, camera centering, and physics)
+        -- Check if destination is an RV Interior pocket dimension
+        local isRV = args.isRV or (args.x >= 22500 and args.y >= 12000)
+
+        if isRV then
+            -- 1. Hydrate RV modData if available so player has exit interaction
+            if args.rvData then
+                pcall(function()
+                    local pmd = player:getModData()
+                    if pmd then
+                        if args.rvData.roomX and args.rvData.roomY then
+                            pmd.projectRV_room = {
+                                x = args.rvData.roomX,
+                                y = args.rvData.roomY,
+                                z = args.rvData.roomZ or 0
+                            }
+                        end
+                        if args.rvData.vehicleId then
+                            pmd.projectRV_vehicleId = tonumber(args.rvData.vehicleId) or args.rvData.vehicleId
+                        end
+                        if args.rvData.typeKey then
+                            pmd.projectRV_typeKey = args.rvData.typeKey
+                        end
+                    end
+                end)
+            end
+
+            -- 2. Stream chunk watcher: wait up to 60 ticks (~1 sec) for floor to instantiate
+            local ticksWaited = 0
+            local function onStreamRVTick()
+                ticksWaited = ticksWaited + 1
+                local cell = getCell()
+                local floorExists = false
+                if cell then
+                    local sq = cell:getGridSquare(math.floor(targetX), math.floor(targetY), targetZ)
+                    if sq and (sq:getFloor() ~= nil or (sq:getObjects() and sq:getObjects():size() > 0)) then
+                        floorExists = true
+                    end
+                end
+
+                if floorExists or ticksWaited >= 60 then
+                    Events.OnTick.Remove(onStreamRVTick)
+
+                    local ok = pcall(function()
+                        player:teleportTo(targetX, targetY, targetZ)
+                    end)
+                    if not ok then
+                        pcall(function()
+                            player:setX(targetX)
+                            player:setY(targetY)
+                            player:setZ(targetZ)
+                        end)
+                    end
+
+                    player:Say("Respawned at " .. (args.name or "RV Safehouse"))
+                end
+            end
+
+            Events.OnTick.Add(onStreamRVTick)
+            return
+        end
+
+        -- Standard base teleport
         local ok = pcall(function()
             player:teleportTo(targetX, targetY, targetZ)
         end)

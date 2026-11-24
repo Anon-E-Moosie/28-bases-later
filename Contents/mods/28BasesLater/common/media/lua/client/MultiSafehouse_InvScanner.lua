@@ -233,6 +233,11 @@ function MSI_Scanner.updateBase(base)
 
     -- Invalidate the merged lookup so the next tooltip rebuilds it
     MSI_Cache.invalidate()
+
+    -- Request a debounced save to disk so offline/reconnecting tooltips retain counts
+    if MSI_Cache.requestSave then
+        MSI_Cache.requestSave()
+    end
 end
 
 -- -----------------------------------------------

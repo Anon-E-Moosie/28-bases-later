@@ -1153,6 +1153,12 @@ local function onSafehousesChanged()
                 base.members = extractSafehouseMembersClient(sh, sh:getOwner())
                 table.insert(updated, base)
                 activeCoords[key] = nil
+            else
+                -- If this base was hydrated from authoritative server data, preserve it!
+                -- Prevents transient engine safehouse unload (such as RV interiors) from wiping the UI.
+                if MultiSafehouse.isHydrated then
+                    table.insert(updated, base)
+                end
             end
         end
 

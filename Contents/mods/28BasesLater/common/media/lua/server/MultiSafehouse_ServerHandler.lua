@@ -137,8 +137,52 @@ local function findSafehouseRecord(x, y)
     return nil, nil, nil
 end
 
+-- Checks if two 2D rectangles overlap.
+-- Used to prevent duplicate claims and colliding safehouses.
+local function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2)
+    return not (x1 + w1 <= x2 or x1 >= x2 + w2 or y1 + h1 <= y2 or y1 >= y2 + h2)
+end
+
+-- Verifies whether an area already belongs to any registered safehouse.
+local function isAreaAlreadyClaimed(x, y, w, h)
+    if not SafeHouse or not SafeHouse.getSafehouseList then return false end
+    local list = SafeHouse.getSafehouseList()
+    for i = 0, list:size() - 1 do
+        local sh = list:get(i)
+        if sh then
+            local sx = sh:getX()
+            local sy = sh:getY()
+            local sw = sh:getW()
+            local shH = sh:getH()
+            if rectsOverlap(x, y, w, h, sx, sy, sw, shH) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Broadcasts newly created safehouse to all online clients so their local
+-- engines immediately register anti-trespass and update the world map.
+local function broadcastSafehouseAdded(x, y, w, h, owner, name)
+    local players = getOnlinePlayers and getOnlinePlayers() or nil
+    if not players then return end
+
+    for i = 0, players:size() - 1 do
+        local p = players:get(i)
+        if p then
+            sendServerCommand(p, "MultiSafehouse", "safehouseAdded", {
+                x = x, y = y, w = w, h = h,
+                owner = owner,
+                name = name
+            })
+        end
+    end
+end
+
 -- Reconciles 28BL stored bases against the authoritative in-game SafeHouse list.
 -- Aggregates both owned bases and member bases into a unified accessible list.
+-- Authoritative over ModData: self-heals missing Java SafeHouse objects (post-death / chunk desync).
 local function reconcilePlayerSafehouses(username)
     local data = getModData()
     data[username] = data[username] or {}
@@ -161,7 +205,7 @@ local function reconcilePlayerSafehouses(username)
     local reconciledOwned = {}
     local hadRespawn = false
 
-    -- 1. Keep only owned bases that genuinely still exist in the world
+    -- 1. Preserve owned bases; self-heal into Java engine if missing (preventing death wipe)
     for _, base in ipairs(stored) do
         local key = base.x .. "," .. base.y
         local sh = realMap[key]
@@ -183,6 +227,46 @@ local function reconcilePlayerSafehouses(username)
             base.members = extractSafehouseMembers(sh, username)
             table.insert(reconciledOwned, base)
             realMap[key] = nil
+        else
+            -- Self-healing: verify the area was not claimed by someone else
+            local alreadyClaimedByOther = false
+            for i = 0, list:size() - 1 do
+                local otherSh = list:get(i)
+                if otherSh and otherSh:getOwner() ~= username then
+                    if rectsOverlap(base.x, base.y, base.w or 1, base.h or 1, otherSh:getX(), otherSh:getY(), otherSh:getW(), otherSh:getH()) then
+                        alreadyClaimedByOther = true
+                        break
+                    end
+                end
+            end
+
+            if not alreadyClaimedByOther then
+                local fn = SafeHouse.addSafeHouse or SafeHouse.addSafehouse
+                local newSh = nil
+                if fn and base.w and base.h then
+                    pcall(function()
+                        newSh = fn(base.x, base.y, base.w, base.h, username)
+                    end)
+                end
+                if newSh then
+                    if base.name and newSh.setTitle then newSh:setTitle(base.name) end
+                    if base.isRespawn and newSh.setRespawnInSafehouse then
+                        pcall(function() newSh:setRespawnInSafehouse(true, username) end)
+                    end
+                    if base.members and newSh.addPlayer then
+                        for _, m in ipairs(base.members) do
+                            pcall(function() newSh:addPlayer(m) end)
+                        end
+                    end
+                    if newSh.syncSafehouse then pcall(function() newSh:syncSafehouse() end) end
+                    broadcastSafehouseAdded(base.x, base.y, base.w, base.h, username, base.name)
+                    print("[28 Bases Later] Self-healed safehouse '" .. tostring(base.name) .. "' for " .. username .. " at (" .. base.x .. "," .. base.y .. ")")
+                end
+                if base.isRespawn then hadRespawn = true end
+                table.insert(reconciledOwned, base)
+            else
+                print("[28 Bases Later] Dropped safehouse '" .. tostring(base.name) .. "' for " .. username .. ": area claimed by another player.")
+            end
         end
     end
 
@@ -274,49 +358,6 @@ local function reconcilePlayerSafehouses(username)
     end
 
     return allAccessibleBases
-end
-
--- Checks if two 2D rectangles overlap.
--- Used to prevent duplicate claims and colliding safehouses.
-local function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2)
-    return not (x1 + w1 <= x2 or x1 >= x2 + w2 or y1 + h1 <= y2 or y1 >= y2 + h2)
-end
-
--- Verifies whether an area already belongs to any registered safehouse.
-local function isAreaAlreadyClaimed(x, y, w, h)
-    if not SafeHouse or not SafeHouse.getSafehouseList then return false end
-    local list = SafeHouse.getSafehouseList()
-    for i = 0, list:size() - 1 do
-        local sh = list:get(i)
-        if sh then
-            local sx = sh:getX()
-            local sy = sh:getY()
-            local sw = sh:getW()
-            local shH = sh:getH()
-            if rectsOverlap(x, y, w, h, sx, sy, sw, shH) then
-                return true
-            end
-        end
-    end
-    return false
-end
-
--- Broadcasts newly created safehouse to all online clients so their local
--- engines immediately register anti-trespass and update the world map.
-local function broadcastSafehouseAdded(x, y, w, h, owner, name)
-    local players = getOnlinePlayers and getOnlinePlayers() or nil
-    if not players then return end
-
-    for i = 0, players:size() - 1 do
-        local p = players:get(i)
-        if p then
-            sendServerCommand(p, "MultiSafehouse", "safehouseAdded", {
-                x = x, y = y, w = w, h = h,
-                owner = owner,
-                name = name
-            })
-        end
-    end
 end
 
 -- Broadcasts safehouse removal so all clients dereference it locally.
@@ -945,11 +986,41 @@ local function onClientCommand(module, command, player, args)
                 local spawnX = math.floor(base.x + (base.w / 2))
                 local spawnY = math.floor(base.y + (base.h / 2))
 
+                local isRV = (base.x >= 22500 and base.y >= 12000)
+                local rvData = nil
+
+                if isRV then
+                    pcall(function()
+                        if ModData.exists and ModData.exists("AssignedRooms") then
+                            local assignedRooms = ModData.getOrCreate("AssignedRooms")
+                            if assignedRooms then
+                                for vehicleId, room in pairs(assignedRooms) do
+                                    if room and room.x and room.y then
+                                        if base.x >= room.x and base.x < (room.x + (room.w or 20)) and
+                                           base.y >= room.y and base.y < (room.y + (room.h or 20)) then
+                                            rvData = {
+                                                vehicleId = tostring(vehicleId),
+                                                roomX = room.x,
+                                                roomY = room.y,
+                                                roomZ = room.z or 0,
+                                                typeKey = room.typeKey
+                                            }
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+
                 sendServerCommand(player, "MultiSafehouse", "teleportToRespawn", {
                     x = spawnX,
                     y = spawnY,
                     z = 0,
-                    name = base.name
+                    name = base.name,
+                    isRV = isRV,
+                    rvData = rvData
                 })
                 return
             end
